@@ -1,0 +1,15 @@
+{
+    "dependencies": {
+        "chalk": "^5.6.2",
+        "hono": "^4.9.9",
+        "zod": "^4.1.12"
+    },
+    "devDependencies": {
+        "@types/bun": "latest"
+    },
+    "name": "dev-dmmdgm-utpa",
+    "scripts": {
+        "dev": "bun run --hot src/index.ts"
+    },
+    "type": "module"
+}
