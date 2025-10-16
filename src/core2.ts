@@ -10,7 +10,15 @@ export const sudo = randomBytes(32).toBase64();
 
 // Defines user methods
 export function createUser(name: string, pass: string): void {
+    // Checks parameters
+    if(!/^[a-zA-Z0-9_]{3,}$/.test(name)) throw new Error("Bad")
+    try {
+        // Checks username
 
+    }
+    catch {
+
+    }
 }
 export function renameUser(name: string, pass: string, rename: string): void {
 
@@ -58,16 +66,16 @@ database.run(`
 
     /* Users */
     CREATE TABLE IF NOT EXISTS users (
-        name TEXT NOT NULL UNIQUE, -- user name
-        hash TEXT NOT NULL UNIQUE, -- user's password hashed with argon2
+        name TEXT NOT NULL UNIQUE,
+        hash TEXT NOT NULL UNIQUE,
         PRIMARY KEY (name)
     );
 
     /* Tokens */
     CREATE TABLE IF NOT EXISTS tokens (
-        mask TEXT NOT NULL UNIQUE, -- user's token but hashed to identify without revealing token
-        sign TEXT NOT NULL UNIQUE, -- user's token but encrypted, requires user's pass to decrypt
-        name TEXT NOT NULL UNIQUE, -- user's name to establish an one-one relationshio
+        mask TEXT NOT NULL UNIQUE,
+        sign TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL UNIQUE,
         FOREIGN KEY (name)
             REFERENCES users (name)
                 ON UPDATE CASCADE
@@ -77,9 +85,9 @@ database.run(`
 
     /* Privileges */
     CREATE TABLE IF NOT EXISTS privileges (
-        mask TEXT NOT NULL, -- see definition above
-        pkey TEXT NOT NULL, -- privilege key name
-        pval TEXT NOT NULL, -- privilege value content
+        mask TEXT NOT NULL,
+        pkey TEXT NOT NULL,
+        pval TEXT NOT NULL
         FOREIGN KEY (mask)
             REFERENCES tokens (mask)
                 ON UPDATE CASCADE
