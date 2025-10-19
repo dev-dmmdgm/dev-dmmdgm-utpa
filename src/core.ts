@@ -1,52 +1,6 @@
 // Imports
 import BunSqlite from "bun:sqlite";
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
-
-// Defines types
-export interface User {
-    hash: string;
-    name: string;
-    uuid: string;
-}
-export interface Token {
-    auth: string;
-    mask: string;
-    sign: string;
-    uuid: string;
-    warp: string;
-}
-export interface Armor {
-    auth: string;
-    sign: string;
-    warp: string;
-}
-export interface Privilege {
-    mask: string;
-    pkey: string;
-    pval: string;
-}
-
-// Defines exceptions
-export enum Label {
-    USER_BAD_NAME,
-    USER_BAD_PASS,
-    USER_COLLIDED,
-    USER_MISSING,
-    USER_UNCONFIRMED,
-    USER_UNPERMITTED,
-    TOKEN_MISSING,
-    TOKEN_UNPERMITTED,
-    PRIVILEGE_MISSING
-}
-export class Exception extends Error {
-    // Defines constructor
-    readonly label: Label;
-    constructor(label: Label) {
-        // Initializes instance
-        super();
-        this.label = label;
-    }
-}
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 // Creates database
 export const database = new BunSqlite("database.sqlite", {
@@ -54,264 +8,280 @@ export const database = new BunSqlite("database.sqlite", {
     strict: true
 });
 
-// Defines sudo
-export const sudo = randomBytes(32).toString("base64");
+// Creates excepts
+export enum Except {
+    USER_ENTRY_HIT,
+    USER_ENTRY_MISS,
+    USER_NAME_INVALID,
+    USER_PASS_FAILED,
+    USER_PASS_INVALID,
+    TOKEN_ENTRY_HIT,
+    TOKEN_ENTRY_MISS,
+    PRIVILEGE_ENTRY_HIT,
+    PRIVILEGE_ENTRY_MISS,
+    PRIVILEGE_PAIR_FAILED
+}
+
+// Creates sudo
+export const sudo = randomBytes(32).toBase64();
 
 // Defines user methods
-export async function createUser(name: string, pass: string): Promise<User> {
-    // Initializes user uuid
-    const uuid = Bun.randomUUIDv7();
+export async function createUser(name: string, pass: string): Promise<void> {
+    // Validates name
+    if(!/^[a-zA-Z0-9_]{3,}$/.test(name)) throw Except.USER_NAME_INVALID;
     
-    // Checks collision
-    const user = lookupUserName(name);
-    if(user !== null) throw new Exception(Label.USER_COLLIDED);
-    
-    // Processes user data
-    if(!/^[a-zA-Z0-9_]+$/.test(name)) throw new Exception(Label.USER_BAD_NAME);
-    if(pass.length < 6) throw new Exception(Label.USER_BAD_PASS);
+    // Hashes pass
+    if(pass.length < 6) throw Except.USER_PASS_INVALID;
     const hash = await Bun.password.hash(pass);
+
+    // Spawns uuid
+    const uuid = Bun.randomUUIDv7();
+
+    // Writes commit
+    try {
+        database.prepare(`
+            INSERT INTO users VALUES ($name, $hash, $uuid);    
+        `).run({ hash, name, uuid });
+    }
+    catch {
+        throw Except.USER_ENTRY_HIT;
+    }
+}
+export async function renameUser(name: string, pass: string, rename: string): Promise<void> {
+    // Verifies user
+    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+
+    // Validates name
+    if(!/^[a-zA-Z0-9_]{3,}$/.test(rename)) throw Except.USER_NAME_INVALID;
     
     // Writes commit
-    database.prepare(`
-        INSERT INTO users VALUES ($uuid, $name, $hash);
-    `).run({ hash, name, uuid });
-
-    // Generates token
-    const token = generateToken(uuid, pass);
-    
-    // Configures privilege
-    const code = softenTokenArmor(token, pass);
-    allowPrivilege(code, "uuid", uuid, sudo);
-
-    // Returns user
-    return { hash, name, uuid };
+    try {
+        database.prepare(`
+            UPDATE users SET name = $rename WHERE name = $name;
+        `).run({ name, rename });
+    }
+    catch {
+        throw Except.USER_ENTRY_HIT;
+    }
 }
-export async function verifyUser(name: string, pass: string): Promise<string> {
-    // Fetches user
-    const user = lookupUserName(name);
-    if(user === null) throw new Exception(Label.USER_MISSING);
-    
-    // Processes user data
-    const { hash, uuid } = user;
-    if(!await Bun.password.verify(pass, hash)) throw new Exception(Label.USER_UNPERMITTED);
-    
-    // Fetches token
-    const token = acquireTokenUUID(uuid);
-    if(token === null) throw new Exception(Label.TOKEN_MISSING);
-    
-    // Proceses token data
-    const code = softenTokenArmor(token, pass);
-    
-    // Returns code
-    return code;
-}
-export async function updateUserName(name: string, pass: string, newName: string): Promise<User> {
-    // Fetches user
-    const user = lookupUserName(name);
-    if(user === null) throw new Exception(Label.USER_MISSING);
-    
-    // Processes user data
-    const { hash, uuid } = user;
-    if(!await Bun.password.verify(pass, hash)) throw new Exception(Label.USER_UNPERMITTED);
-    if(!/^[a-zA-Z0-9_]+$/.test(name)) throw new Exception(Label.USER_BAD_NAME);
+export async function repassUser(name: string, pass: string, repass: string): Promise<void> {
+    // Verifies user
+    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+
+    // Hashes pass
+    if(repass.length < 6) throw Except.USER_PASS_INVALID;
+    const rehash = await Bun.password.hash(repass);
     
     // Writes commit
-    database.prepare(`
-        UPDATE users SET name = $newName WHERE uuid = $uuid;
-    `).run({ newName, uuid });
-
-    // Returns user
-    return { name: newName, hash, uuid };
-}
-export async function updateUserPass(name: string, pass: string, newPass: string): Promise<User> {
-    // Fetches user
-    const user = lookupUserName(name);
-    if(user === null) throw new Exception(Label.USER_MISSING);
-    
-    // Processes user data
-    const { hash, uuid } = user;
-    if(!await Bun.password.verify(pass, hash)) throw new Exception(Label.USER_UNPERMITTED);
-    if(newPass.length < 6) throw new Exception(Label.USER_BAD_PASS);
-    const newHash = await Bun.password.hash(newPass);
-    
-    // Writes commit
-    database.prepare(`
-        UPDATE users SET hash = $newHash WHERE uuid = $uuid;
-    `).run({ newHash, uuid });
-
-    // Regenerates token
-    generateToken(uuid, newPass);
-
-    // Returns user
-    return { name, hash: newHash, uuid };
+    try {
+        database.prepare(`
+            UPDATE users SET hash = $rehash WHERE name = $name;
+        `).run({ name, rehash });
+    }
+    catch {
+        throw Except.USER_ENTRY_HIT;
+    }
 }
 export async function deleteUser(name: string, pass: string): Promise<void> {
-    // Fetches user
-    const user = lookupUserName(name);
-    if(user === null) throw new Exception(Label.USER_MISSING);
-    
-    // Processes user data
-    const { hash, uuid } = user;
-    if(!await Bun.password.verify(pass, hash)) throw new Exception(Label.USER_UNPERMITTED);
+    // Verifies user
+    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
 
     // Writes commit
-    database.prepare(`
-        DELETE FROM users WHERE uuid = $uuid;
-    `).run({ uuid });
+    try {
+        database.prepare(`
+            DELETE FROM users WHERE name = $name;
+        `).run({ name });
+    }
+    catch {
+        throw Except.USER_ENTRY_MISS;
+    }
 }
-export function lookupUserUUID(uuid: string): User | null {
-    // Fetches user
+export async function verifyUser(name: string, pass: string): Promise<boolean> {
+    // Verifies pass
     const user = database.query(`
-        SELECT * FROM users WHERE uuid = $uuid;
-    `).get({ uuid }) as User | null;
-    return user;
+        SELECT hash FROM users WHERE name = $name;
+    `).get({ name }) as {
+        hash: string;
+    } | null;
+    if(user === null) throw Except.USER_ENTRY_MISS;
+    return await Bun.password.verify(pass, user.hash);
+
 }
-export function lookupUserName(name: string): User | null {
-    // Fetches user
+export function uniqueUser(name: string): string {
+    // Retrieves uuid
     const user = database.query(`
-        SELECT * FROM users WHERE name = $name;
-    `).get({ name }) as User | null;
-    return user;
+        SELECT uuid FROM users WHERE name = $name;
+    `).get({ name }) as {
+        uuid: string;
+    } | null;
+    if(user === null) throw Except.USER_ENTRY_MISS;
+    return user.uuid;
 }
-export function revealUsers(size: number = 25, page: number = 0): User[] {
-    // Fetches users
-    const limit = size;
-    const offset = size * page;
-    const users = database.query(`
-        SELECT * FROM users LIMIT $limit OFFSET $offset;
-    `).all({ offset, limit }) as User[];
-    return users;
+export function lookupUser(uuid: string): string {
+    // Retrieves name
+    const user = database.query(`
+        SELECT name FROM users WHERE uuid = $uuid;
+    `).get({ uuid }) as {
+        name: string;
+    } | null;
+    if(user === null) throw Except.USER_ENTRY_MISS;
+    return user.name;
 }
 
 // Defines token methods
-export function generateToken(uuid: string, pass: string): Token {
-    // Initializes token
+export async function generateToken(name: string, pass: string): Promise<void> {
+    // Verifies user
+    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+
+    // Generates token
     const code = randomBytes(32).toString("base64");
-    const { auth, sign, warp } = hardenTokenArmor(code, pass);
-    const mask = disguiseTokenMask(code);
+    const sign = encryptToken(code, pass);
+    const mask = obfuscateToken(code);
 
     // Writes commit
-    const token = acquireTokenUUID(uuid);
-    if(token === null) database.prepare(`
-        INSERT INTO tokens VALUES ($uuid, $warp, $auth, $sign, $mask);
-    `).run({ auth, mask, sign, uuid, warp });
-    else database.prepare(`
-        UPDATE tokens SET warp = $warp, auth = $auth, sign = $sign, mask = $mask WHERE uuid = $uuid;
-    `).run({ auth, mask, sign, uuid, warp });
-
-    // Returns token
-    return { auth, mask, sign, uuid, warp };
+    try {
+        database.prepare(`
+            INSERT INTO tokens VALUES ($mask, $sign, $name)
+                ON CONFLICT (name) DO UPDATE SET mask = $mask, sign = $sign WHERE name = $name;
+        `).run({ mask, name, sign });
+    }
+    catch {
+        throw Except.TOKEN_ENTRY_HIT;
+    }
 }
-export function hardenTokenArmor(code: string, pass: string): Armor {
-    // Creates token cipher
-    const pick = createHash("sha-256").update(Buffer.from(pass, "utf8")).digest("hex");
-    const warp = randomBytes(16).toString("hex");
-    const lock = createCipheriv("aes-256-gcm", Buffer.from(pick, "hex"), Buffer.from(warp, "hex"));
-    
-    // Encrypts token string
-    const sign = lock.update(code, "base64", "hex") + lock.final("hex");
-    const auth = lock.getAuthTag().toString("hex");
+export async function retrieveToken(name: string, pass: string): Promise<string> {
+    // Verifies user
+    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
 
-    // Returns token
-    return { auth, sign, warp };
-}
-export function softenTokenArmor(armor: Armor, pass: string): string {
-    // Creates token decipher
-    const { auth, sign, warp } = armor;
-    const pick = createHash("sha-256").update(Buffer.from(pass, "utf8")).digest("hex");
-    const lock = createDecipheriv("aes-256-gcm", Buffer.from(pick, "hex"), Buffer.from(warp, "hex"));
-    lock.setAuthTag(Buffer.from(auth, "hex"));
-
-    // Decrypts token string
-    const code = lock.update(sign, "hex", "base64") + lock.final("base64");
-
-    // Returns code
-    return code;
-}
-export function disguiseTokenMask(code: string): string {
-    // Hashes token string
-    const mask = createHash("sha-256").update(Buffer.from(code, "base64")).digest("hex");
-    
-    // Returns mask
-    return mask;
-}
-export function acquireTokenUUID(uuid: string): Token | null {
-    // Fetches token
+    // Reveals code
     const token = database.query(`
-        SELECT * FROM tokens WHERE uuid = $uuid;
-    `).get({ uuid }) as Token | null;
-    return token;
+        SELECT sign FROM tokens WHERE name = $name;
+    `).get({ name }) as {
+        sign: string;
+    } | null;
+    if(token === null) throw Except.TOKEN_ENTRY_MISS;
+    return decryptToken(token.sign, pass);
 }
-export function acquireTokenMask(code: string): Token | null {
-    // Fetches token
-    const mask = disguiseTokenMask(code);
+export function encryptToken(code: string, pass: string): string {
+    // Creates cipher
+    const key = createHash("sha-256").update(Buffer.from(pass, "utf8")).digest("hex");
+    const vector = randomBytes(16).toString("hex");
+    const cipher = createCipheriv(
+        "aes-256-gcm",
+        Buffer.from(key, "hex"),
+        Buffer.from(vector, "hex")
+    );
+    
+    // Encrypts code
+    const warp = cipher.update(code, "base64", "hex") + cipher.final("hex");
+    const tag = cipher.getAuthTag().toString("hex");
+    return [ warp, vector, tag ].join(";");
+}
+export function decryptToken(sign: string, pass: string): string {
+    // Creates decipher
+    const [ warp, vector, tag ] = sign.split(";");
+    const key = createHash("sha-256").update(Buffer.from(pass, "utf8")).digest("hex");
+    const decipher = createDecipheriv(
+        "aes-256-gcm",
+        Buffer.from(key, "hex"),
+        Buffer.from(vector, "hex")
+    );
+    
+    // Decrypts code
+    decipher.setAuthTag(Buffer.from(tag, "hex"));
+    return decipher.update(warp, "hex", "base64") + decipher.final("base64");
+}
+export function obfuscateToken(code: string): string {
+    // Obfuscates code
+    return createHash("sha-256").update(Buffer.from(code, "base64")).digest("hex");
+}
+export function identifyToken(code: string): string {
+    // Obfuscates code
+    const mask = obfuscateToken(code);
+
+    // Identifies user
     const token = database.query(`
-        SELECT * FROM tokens WHERE mask = $mask;
-    `).get({ mask }) as Token | null;
-    return token;
+        SELECT name FROM tokens WHERE mask = $mask;
+    `).get({ mask }) as {
+        name: string;
+    } | null;
+    if(token === null) throw Except.TOKEN_ENTRY_MISS;
+    return token.name;
 }
 
 // Defines privilege methods
-export function allowPrivilege(code: string, pkey: string, pval: string, power: string): Privilege {
-    // Checks power permission
-    const permitted =
-    power === sudo ||
-    checkPrivilege(power, "root") === "1" ||
-    checkPrivilege(power, "manage-privilege") === "1";
-    if(!permitted) throw new Exception(Label.TOKEN_UNPERMITTED);
-    
-    // Write commit
-    const mask = disguiseTokenMask(code);
-    const privilege = findPrivilege(code, pkey);
-    if(privilege === null) database.prepare(`
-        INSERT INTO privileges VALUES ($mask, $pkey, $pval);
-    `).run({ mask, pkey, pval });
-    else database.prepare(`
-        UPDATE privileges SET pval = $pval WHERE mask = $mask and pkey = $pkey;
-    `).run({ mask, pkey, pval });
+export function allowPrivilege(code: string, pkey: string, pval: string, auth: string): void {
+    // Checks privilege
+    if(
+        auth !== sudo &&
+        checkPrivilege(code, "system-admin") !== "1" &&
+        checkPrivilege(code, "manage-privilege") !== "1"
+    ) throw Except.PRIVILEGE_PAIR_FAILED;
 
-    // Returns privilege
-    return { mask, pkey, pval };
+    // Obfuscates code
+    const mask = obfuscateToken(code);
+
+    // Writes commit
+    try {
+        database.prepare(`
+            INSERT INTO privileges VALUES ($mask, $pkey, $pval)
+                ON CONFLICT (mask, pkey) DO UPDATE SET pval = $pval WHERE mask = $mask AND pkey = $pkey;
+        `).run({ mask, pkey, pval });
+    }
+    catch {
+        throw Except.PRIVILEGE_ENTRY_HIT;
+    }
+}
+export function denyPrivilege(code: string, pkey: string, auth: string): void {
+    // Checks privilege
+    if(
+        auth !== sudo &&
+        checkPrivilege(code, "system-admin") !== "1" &&
+        checkPrivilege(code, "manage-privilege") !== "1"
+    ) throw Except.PRIVILEGE_PAIR_FAILED;
+
+    // Obfuscates code
+    const mask = obfuscateToken(code);
+
+    // Writes commit
+    try {
+        database.prepare(`
+            DELETE FROM privileges WHERE mask = $mask AND pkey = $pkey;
+        `).run({ mask, pkey });
+    }
+    catch {
+        throw Except.PRIVILEGE_ENTRY_MISS;
+    }
 }
 export function checkPrivilege(code: string, pkey: string): string | null {
-    // Fetches privilege
-    const privilege = findPrivilege(code, pkey);
+    // Obfuscates code
+    const mask = obfuscateToken(code);
 
-    // Fetches pval
-    if(privilege === null) return null;
-    return privilege.pval;
-}
-export function denyPrivilege(code: string, pkey: string, power: string): void {
-    // Checks power privilege
-    const permitted =
-        power === sudo ||
-        checkPrivilege(power, "root") === "1" ||
-        checkPrivilege(power, "manage-privilege") === "1";
-    if(!permitted) throw new Exception(Label.TOKEN_UNPERMITTED);
-    
-    // Write commit
-    const mask = disguiseTokenMask(code);
-    const privilege = findPrivilege(code, pkey);
-    if(privilege === null) throw new Exception(Label.PRIVILEGE_MISSING);
-    database.prepare(`
-        DELETE FROM users WHERE mask = $mask AND pkey = $pkey;
-    `).run({ mask, pkey });
-}
-export function findPrivilege(code: string, pkey: string): Privilege | null {
-    // Fetches privilege
-    const mask = disguiseTokenMask(code);
+    // Checks privilege
     const privilege = database.query(`
-        SELECT * FROM privileges WHERE mask = $mask AND pkey = $pkey;
-    `).get({ mask, pkey }) as Privilege | null;
-    return privilege;
-} 
-export function listPrivileges(code: string): Privilege[] {
+        SELECT pval FROM privileges WHERE mask = $mask AND pkey = $pkey;
+    `).get({ mask, pkey }) as {
+        pval: string;
+    } | null;
+    return privilege === null ? null : privilege.pval;
+}
+export function listPrivileges(code: string): { [ pkey in string ]: string; } {
+    // Obfuscates code
+    const mask = obfuscateToken(code);
+
     // Fetches privileges
-    const mask = disguiseTokenMask(code);
     const privileges = database.query(`
-        SELECT * FROM privileges WHERE mask = $mask;
-    `).all({ mask }) as Privilege[];
-    return privileges;
+        SELECT pval, pkey FROM privileges WHERE mask = $mask;
+    `).all({ mask }) as {
+        pval: string;
+        pkey: string;
+    }[];
+
+    // Creates pairs
+    const pairs: { [ pkey in string ]: string; } = {};
+    for(let i = 0; i < privileges.length; i++)
+        pairs[privileges[i].pkey] = privileges[i].pval;
+    return pairs;
 }
 
 // Initializes database
@@ -322,22 +292,22 @@ database.run(`
 
     /* Users */
     CREATE TABLE IF NOT EXISTS users (
-        uuid TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
-        hash TEXT NOT NULL
+        hash TEXT NOT NULL UNIQUE,
+        uuid TEXT NOT NULL UNIQUE,
+        PRIMARY KEY (name)
     );
 
     /* Tokens */
     CREATE TABLE IF NOT EXISTS tokens (
-        uuid TEXT PRIMARY KEY,
-        warp TEXT NOT NULL,
-        auth TEXT NOT NULL,
-        sign TEXT NOT NULL UNIQUE,
         mask TEXT NOT NULL UNIQUE,
-        FOREIGN KEY (uuid)
-            REFERENCES users (uuid)
+        sign TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL UNIQUE,
+        FOREIGN KEY (name)
+            REFERENCES users (name)
                 ON UPDATE CASCADE
-                ON DELETE CASCADE
+                ON DELETE CASCADE,
+        PRIMARY KEY (mask)
     );
 
     /* Privileges */
