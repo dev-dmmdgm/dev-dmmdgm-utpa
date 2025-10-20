@@ -10,14 +10,14 @@ export const database = new BunSqlite("database.sqlite", {
 
 // Creates excepts
 export enum Except {
-    USER_ENTRY_HIT,
+    USER_ENTRY_HIT = 8000,
     USER_ENTRY_MISS,
     USER_NAME_INVALID,
     USER_PASS_FAILED,
     USER_PASS_INVALID,
-    TOKEN_ENTRY_HIT,
+    TOKEN_ENTRY_HIT = 8100,
     TOKEN_ENTRY_MISS,
-    PRIVILEGE_ENTRY_HIT,
+    PRIVILEGE_ENTRY_HIT = 8200,
     PRIVILEGE_ENTRY_MISS,
     PRIVILEGE_PAIR_FAILED
 }

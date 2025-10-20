@@ -19,5 +19,3 @@
 // // core.denyPrivilege(code, "system-admin", code);
 // // console.log(core.checkPrivilege(code, "system-admin"));
 // // console.log(core.listPrivileges(code));
-
-console.log(true in {});
