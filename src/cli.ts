@@ -1,7 +1,7 @@
 // Imports
 import chalk from "chalk";
 import nodeReadline from "node:readline/promises";
-import * as core from "./core";
+import * as core from "./base";
 
 // Creates readline
 const readline = nodeReadline.createInterface({

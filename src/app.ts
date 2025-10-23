@@ -1,64 +1,47 @@
 // Imports
-import { Context, Hono } from "hono";
+import { Hono } from "hono";
 import { validator } from "hono/validator";
 import * as zod from "zod";
 import * as core from "./core";
 
-// Creates codes
+// Defines codes
 export enum Code {
-    ACTION_SUCCESS = 3000,
+    ACTION_SUCCESS,
     MALFORMED_BODY,
-    EXCEPT_ERROR,
-    INTERNAL_ERROR,
-    UNBOUNDED_ERROR
+    RAISED_EXCEPT
 }
 
 // Creates server
-const app = new Hono()
+export const app = new Hono()
     .post(
         "/create",
         validator("json", (value, context) => {
             // Parses value
-            const result = zod.object({
+            const schema = zod.object({
                 name: zod.string(),
                 pass: zod.string()
-            }).safeParse(value);
+            });
+            const result = schema.safeParse(value);
             if(!result.success) return context.json({
                 "code": Code.MALFORMED_BODY
-            });
+            }, 400);
             return result.data;
         }),
-        (context) => {
-            // Resolves request
+        async (context) => {
+            // Creates user
+            const { name, pass } = context.req.valid("json");
             try {
-                // Executes process
-                const { name, pass } = context.req.valid("json");
-                core.createUser(name, pass);
-                core.generateToken(name, pass);
+                const code = await core.createUser(name, pass);
                 return context.json({
-                    "code": Code.ACTION_SUCCESS
-                });
+                    "code": Code.ACTION_SUCCESS,
+                    "data": code
+                }, 200);
             }
             catch(error) {
-                // Handles specified error
-                if(typeof error === "number") {
-                    // Handles except error
-                    if(error in core.Except) return context.json({
-                        "code": Code.EXCEPT_ERROR,
-                        "except": error,
-                    });
-
-                    // Handles unbounded error
-                    return context.json({
-                        "code": Code.UNBOUNDED_ERROR,
-                        "cause": error
-                    });
-                }
-                
-                // Handles internal error
                 return context.json({
-                    "code": Code.INTERNAL_ERROR
-                });
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
             }
         }
     )
@@ -66,46 +49,32 @@ const app = new Hono()
         "/rename",
         validator("json", (value, context) => {
             // Parses value
-            const result = zod.object({
+            const schema = zod.object({
                 name: zod.string(),
                 pass: zod.string(),
                 rename: zod.string()
-            }).safeParse(value);
+            });
+            const result = schema.safeParse(value);
             if(!result.success) return context.json({
                 "code": Code.MALFORMED_BODY
-            });
+            }, 400);
             return result.data;
         }),
         (context) => {
-            // Resolves request
+            // Renames user
+            const { name, pass, rename } = context.req.valid("json");
             try {
-                // Executes process
-                const { name, pass, rename } = context.req.valid("json");
-                core.renameUser(name, pass, rename);
+                const code = core.renameUser(name, pass, rename);
                 return context.json({
-                    "code": Code.ACTION_SUCCESS
-                });
+                    "code": Code.ACTION_SUCCESS,
+                    "data": code
+                }, 200);
             }
             catch(error) {
-                // Handles specified error
-                if(typeof error === "number") {
-                    // Handles except error
-                    if(error in core.Except) return context.json({
-                        "code": Code.EXCEPT_ERROR,
-                        "except": error,
-                    });
-
-                    // Handles unbounded error
-                    return context.json({
-                        "code": Code.UNBOUNDED_ERROR,
-                        "cause": error
-                    });
-                }
-                
-                // Handles internal error
                 return context.json({
-                    "code": Code.INTERNAL_ERROR
-                });
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
             }
         }
     )
@@ -113,47 +82,32 @@ const app = new Hono()
         "/repass",
         validator("json", (value, context) => {
             // Parses value
-            const result = zod.object({
+            const schema = zod.object({
                 name: zod.string(),
                 pass: zod.string(),
                 repass: zod.string()
-            }).safeParse(value);
+            });
+            const result = schema.safeParse(value);
             if(!result.success) return context.json({
                 "code": Code.MALFORMED_BODY
-            });
+            }, 400);
             return result.data;
         }),
-        (context) => {
-            // Resolves request
+        async (context) => {
+            // Repasses user
+            const { name, pass, repass } = context.req.valid("json");
             try {
-                // Executes process
-                const { name, pass, repass } = context.req.valid("json");
-                core.repassUser(name, pass, repass);
-                core.generateToken(name, pass);
+                const code = await core.repassUser(name, pass, repass);
                 return context.json({
-                    "code": Code.ACTION_SUCCESS
-                });
+                    "code": Code.ACTION_SUCCESS,
+                    "data": code
+                }, 200);
             }
             catch(error) {
-                // Handles specified error
-                if(typeof error === "number") {
-                    // Handles except error
-                    if(error in core.Except) return context.json({
-                        "code": Code.EXCEPT_ERROR,
-                        "except": error,
-                    });
-
-                    // Handles unbounded error
-                    return context.json({
-                        "code": Code.UNBOUNDED_ERROR,
-                        "cause": error
-                    });
-                }
-                
-                // Handles internal error
                 return context.json({
-                    "code": Code.INTERNAL_ERROR
-                });
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
             }
         }
     )
@@ -161,56 +115,321 @@ const app = new Hono()
         "/delete",
         validator("json", (value, context) => {
             // Parses value
-            const result = zod.object({
+            const schema = zod.object({
                 name: zod.string(),
                 pass: zod.string()
-            }).safeParse(value);
+            });
+            const result = schema.safeParse(value);
             if(!result.success) return context.json({
                 "code": Code.MALFORMED_BODY
-            });
+            }, 400);
             return result.data;
         }),
-        (context) => {
-            // Resolves request
+        async (context) => {
+            // Deletes user
+            const { name, pass } = context.req.valid("json");
             try {
-                // Executes process
-                const { name, pass } = context.req.valid("json");
-                core.deleteUser(name, pass);
+                await core.deleteUser(name, pass);
                 return context.json({
-                    "code": Code.ACTION_SUCCESS
-                });
+                    "code": Code.ACTION_SUCCESS,
+                    "data": null
+                }, 200);
             }
             catch(error) {
-                // Handles specified error
-                if(typeof error === "number") {
-                    // Handles except error
-                    if(error in core.Except) return context.json({
-                        "code": Code.EXCEPT_ERROR,
-                        "except": error,
-                    });
-
-                    // Handles unbounded error
-                    return context.json({
-                        "code": Code.UNBOUNDED_ERROR,
-                        "cause": error
-                    });
-                }
-                
-                // Handles internal error
                 return context.json({
-                    "code": Code.INTERNAL_ERROR
-                });
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
             }
         }
     )
-    .put("/unique")
-    .put("/lookup")
-    .post("/generate")
-    .put("/retrieve")
-    .put("/identify")
-    .post("/allow")
-    .post("/deny")
-    .put("/check")
-    .put("/list")
+    .put(
+        "/unique",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                name: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        (context) => {
+            // Finds user UUID
+            const { name } = context.req.valid("json");
+            try {
+                const uuid = core.uniqueUser(name);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": uuid
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .put(
+        "/lookup",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                uuid: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        (context) => {
+            // Finds user name
+            const { uuid } = context.req.valid("json");
+            try {
+                const name = core.lookupUser(uuid);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": name
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .post(
+        "/generate",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                name: zod.string(),
+                pass: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        async (context) => {
+            // Generates token
+            const { name, pass } = context.req.valid("json");
+            try {
+                const code = await core.generateToken(name, pass);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": code
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .put(
+        "/retrieve",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                name: zod.string(),
+                pass: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        async (context) => {
+            // Retrieves token
+            const { name, pass } = context.req.valid("json");
+            try {
+                const code = await core.retrieveToken(name, pass);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": code
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .put(
+        "/identify",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                code: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        (context) => {
+            // Identifies token
+            const { code } = context.req.valid("json");
+            try {
+                const name = core.identifyToken(code);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": name
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .post(
+        "/allow",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                auth: zod.string(),
+                code: zod.string(),
+                pkey: zod.string(),
+                pval: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        (context) => {
+            // Allows privilege
+            const { auth, code, pkey, pval } = context.req.valid("json");
+            try {
+                core.allowPrivilege(code, pkey, pval, auth);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": null
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .post(
+        "/deny",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                auth: zod.string(),
+                code: zod.string(),
+                pkey: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        (context) => {
+            // Denies privilege
+            const { auth, code, pkey } = context.req.valid("json");
+            try {
+                core.denyPrivilege(code, pkey, auth);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": null
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .put(
+        "/check",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                code: zod.string(),
+                pkey: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        (context) => {
+            // Checks privilege
+            const { code, pkey } = context.req.valid("json");
+            try {
+                const pval = core.checkPrivilege(code, pkey);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": pval
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    )
+    .put(
+        "/list",
+        validator("json", (value, context) => {
+            // Parses value
+            const schema = zod.object({
+                code: zod.string()
+            });
+            const result = schema.safeParse(value);
+            if(!result.success) return context.json({
+                "code": Code.MALFORMED_BODY
+            }, 400);
+            return result.data;
+        }),
+        (context) => {
+            // List privileges
+            const { code } = context.req.valid("json");
+            try {
+                const pairs = core.listPrivileges(code);
+                return context.json({
+                    "code": Code.ACTION_SUCCESS,
+                    "data": pairs
+                }, 200);
+            }
+            catch(error) {
+                return context.json({
+                    "code": Code.RAISED_EXCEPT,
+                    "except": error as number
+                }, 400);
+            }
+        }
+    );
 
+// Exports
 export default app;
