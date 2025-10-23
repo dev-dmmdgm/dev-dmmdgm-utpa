@@ -4,12 +4,17 @@ import { validator } from "hono/validator";
 import * as zod from "zod";
 import * as core from "./core";
 
-// Defines codes
-export enum Code {
+// Defines statuses
+export enum StatusCode {
     ACTION_SUCCESS,
     MALFORMED_BODY,
     RAISED_EXCEPT
 }
+export const statusText: { [ statusCode in StatusCode ]: string; } = {
+    [ StatusCode.ACTION_SUCCESS ]: "Action was successful.",
+    [ StatusCode.MALFORMED_BODY ]: "Failed to parse incoming JSON: %reason%",
+    [ StatusCode.RAISED_EXCEPT ]: "An exception was raised."
+};
 
 // Creates helpers
 export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
@@ -18,7 +23,11 @@ export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
         // Parses value
         const result = schema.safeParse(value);
         if(!result.success) return context.json({
-            "code": Code.MALFORMED_BODY
+            "status": {
+                "code": StatusCode.MALFORMED_BODY,
+                "text": statusText[StatusCode.MALFORMED_BODY]
+                    .replaceAll(/%reason%/g, result.error.message)
+            }
         }, 400);
         return result.data;
     });
@@ -28,14 +37,23 @@ export async function execute(context: Context, callback: () => unknown) {
     try {
         const data = await callback();
         return context.json({
-            "code": Code.ACTION_SUCCESS,
+            "status": {
+                "code": StatusCode.ACTION_SUCCESS,
+                "text": statusText[StatusCode.ACTION_SUCCESS]
+            },
             "data": data
         }, 200);
     }
     catch(error) {
         return context.json({
-            "code": Code.RAISED_EXCEPT,
-            "except": error as number
+            "status": {
+                "code": StatusCode.RAISED_EXCEPT,
+                "text": statusText[StatusCode.RAISED_EXCEPT]
+            },
+            "except": {
+                "code": error as core.ExceptCode,
+                "text": core.exceptText[error as core.ExceptCode]
+            }
         }, 400);
     }
 }

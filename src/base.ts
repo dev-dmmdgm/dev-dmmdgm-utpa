@@ -9,7 +9,7 @@ export const database = new BunSqlite("database.sqlite", {
 });
 
 // Creates excepts
-export enum Except {
+export enum ExceptCode {
     USER_ENTRY_HIT,
     USER_ENTRY_MISS,
     USER_NAME_INVALID,
@@ -21,6 +21,18 @@ export enum Except {
     PRIVILEGE_ENTRY_MISS,
     PRIVILEGE_PAIR_FAILED
 }
+export const exceptText: { [ exceptCode in ExceptCode ]: string; } = {
+    [ ExceptCode.USER_ENTRY_HIT ]: "User entry already exists.",
+    [ ExceptCode.USER_ENTRY_MISS ]: "User entry does not exist.",
+    [ ExceptCode.USER_NAME_INVALID ]: "User name must be three characters (alphabet, numbers, and underline only) or longer.",
+    [ ExceptCode.USER_PASS_FAILED ]: "User pass does not match.",
+    [ ExceptCode.USER_PASS_INVALID ]: "User pass must be at least six characters in length.",
+    [ ExceptCode.TOKEN_ENTRY_HIT ]: "Token entry already exists.",
+    [ ExceptCode.TOKEN_ENTRY_MISS ]: "Token entry does not exist.",
+    [ ExceptCode.PRIVILEGE_ENTRY_HIT ]: "Privilege entry already exists.",
+    [ ExceptCode.PRIVILEGE_ENTRY_MISS ]: "Privilege entry does not exist.",
+    [ ExceptCode.PRIVILEGE_PAIR_FAILED ]: "Privilege not authorized."
+};
 
 // Creates sudo
 export const sudo = randomBytes(32).toBase64();
@@ -28,10 +40,10 @@ export const sudo = randomBytes(32).toBase64();
 // Defines user methods
 export async function createUser(name: string, pass: string): Promise<void> {
     // Validates name
-    if(!/^[a-zA-Z0-9_]{3,}$/.test(name)) throw Except.USER_NAME_INVALID;
+    if(!/^[a-zA-Z0-9_]{3,}$/.test(name)) throw ExceptCode.USER_NAME_INVALID;
     
     // Hashes pass
-    if(pass.length < 6) throw Except.USER_PASS_INVALID;
+    if(pass.length < 6) throw ExceptCode.USER_PASS_INVALID;
     const hash = await Bun.password.hash(pass);
 
     // Spawns uuid
@@ -44,15 +56,15 @@ export async function createUser(name: string, pass: string): Promise<void> {
         `).run({ hash, name, uuid });
     }
     catch {
-        throw Except.USER_ENTRY_HIT;
+        throw ExceptCode.USER_ENTRY_HIT;
     }
 }
 export async function renameUser(name: string, pass: string, rename: string): Promise<void> {
     // Verifies user
-    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+    if(!await verifyUser(name, pass)) throw ExceptCode.USER_PASS_FAILED;
 
     // Validates name
-    if(!/^[a-zA-Z0-9_]{3,}$/.test(rename)) throw Except.USER_NAME_INVALID;
+    if(!/^[a-zA-Z0-9_]{3,}$/.test(rename)) throw ExceptCode.USER_NAME_INVALID;
     
     // Writes commit
     try {
@@ -61,15 +73,15 @@ export async function renameUser(name: string, pass: string, rename: string): Pr
         `).run({ name, rename });
     }
     catch {
-        throw Except.USER_ENTRY_HIT;
+        throw ExceptCode.USER_ENTRY_HIT;
     }
 }
 export async function repassUser(name: string, pass: string, repass: string): Promise<void> {
     // Verifies user
-    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+    if(!await verifyUser(name, pass)) throw ExceptCode.USER_PASS_FAILED;
 
     // Hashes pass
-    if(repass.length < 6) throw Except.USER_PASS_INVALID;
+    if(repass.length < 6) throw ExceptCode.USER_PASS_INVALID;
     const rehash = await Bun.password.hash(repass);
     
     // Writes commit
@@ -79,12 +91,12 @@ export async function repassUser(name: string, pass: string, repass: string): Pr
         `).run({ name, rehash });
     }
     catch {
-        throw Except.USER_ENTRY_HIT;
+        throw ExceptCode.USER_ENTRY_HIT;
     }
 }
 export async function deleteUser(name: string, pass: string): Promise<void> {
     // Verifies user
-    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+    if(!await verifyUser(name, pass)) throw ExceptCode.USER_PASS_FAILED;
 
     // Writes commit
     try {
@@ -93,7 +105,7 @@ export async function deleteUser(name: string, pass: string): Promise<void> {
         `).run({ name });
     }
     catch {
-        throw Except.USER_ENTRY_MISS;
+        throw ExceptCode.USER_ENTRY_MISS;
     }
 }
 export async function verifyUser(name: string, pass: string): Promise<boolean> {
@@ -103,7 +115,7 @@ export async function verifyUser(name: string, pass: string): Promise<boolean> {
     `).get({ name }) as {
         hash: string;
     } | null;
-    if(user === null) throw Except.USER_ENTRY_MISS;
+    if(user === null) throw ExceptCode.USER_ENTRY_MISS;
     return await Bun.password.verify(pass, user.hash);
 
 }
@@ -114,7 +126,7 @@ export function uniqueUser(name: string): string {
     `).get({ name }) as {
         uuid: string;
     } | null;
-    if(user === null) throw Except.USER_ENTRY_MISS;
+    if(user === null) throw ExceptCode.USER_ENTRY_MISS;
     return user.uuid;
 }
 export function lookupUser(uuid: string): string {
@@ -124,14 +136,14 @@ export function lookupUser(uuid: string): string {
     `).get({ uuid }) as {
         name: string;
     } | null;
-    if(user === null) throw Except.USER_ENTRY_MISS;
+    if(user === null) throw ExceptCode.USER_ENTRY_MISS;
     return user.name;
 }
 
 // Defines token methods
 export async function generateToken(name: string, pass: string): Promise<void> {
     // Verifies user
-    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+    if(!await verifyUser(name, pass)) throw ExceptCode.USER_PASS_FAILED;
 
     // Generates token
     const code = randomBytes(32).toString("base64");
@@ -146,12 +158,12 @@ export async function generateToken(name: string, pass: string): Promise<void> {
         `).run({ mask, name, sign });
     }
     catch {
-        throw Except.TOKEN_ENTRY_HIT;
+        throw ExceptCode.TOKEN_ENTRY_HIT;
     }
 }
 export async function retrieveToken(name: string, pass: string): Promise<string> {
     // Verifies user
-    if(!await verifyUser(name, pass)) throw Except.USER_PASS_FAILED;
+    if(!await verifyUser(name, pass)) throw ExceptCode.USER_PASS_FAILED;
 
     // Reveals code
     const token = database.query(`
@@ -159,7 +171,7 @@ export async function retrieveToken(name: string, pass: string): Promise<string>
     `).get({ name }) as {
         sign: string;
     } | null;
-    if(token === null) throw Except.TOKEN_ENTRY_MISS;
+    if(token === null) throw ExceptCode.TOKEN_ENTRY_MISS;
     return decryptToken(token.sign, pass);
 }
 export function encryptToken(code: string, pass: string): string {
@@ -205,7 +217,7 @@ export function identifyToken(code: string): string {
     `).get({ mask }) as {
         name: string;
     } | null;
-    if(token === null) throw Except.TOKEN_ENTRY_MISS;
+    if(token === null) throw ExceptCode.TOKEN_ENTRY_MISS;
     return token.name;
 }
 
@@ -216,7 +228,7 @@ export function allowPrivilege(code: string, pkey: string, pval: string, auth: s
         auth !== sudo &&
         checkPrivilege(code, "system-admin") !== "1" &&
         checkPrivilege(code, "manage-privilege") !== "1"
-    ) throw Except.PRIVILEGE_PAIR_FAILED;
+    ) throw ExceptCode.PRIVILEGE_PAIR_FAILED;
 
     // Obfuscates code
     const mask = obfuscateToken(code);
@@ -229,7 +241,7 @@ export function allowPrivilege(code: string, pkey: string, pval: string, auth: s
         `).run({ mask, pkey, pval });
     }
     catch {
-        throw Except.PRIVILEGE_ENTRY_HIT;
+        throw ExceptCode.PRIVILEGE_ENTRY_HIT;
     }
 }
 export function denyPrivilege(code: string, pkey: string, auth: string): void {
@@ -238,7 +250,7 @@ export function denyPrivilege(code: string, pkey: string, auth: string): void {
         auth !== sudo &&
         checkPrivilege(code, "system-admin") !== "1" &&
         checkPrivilege(code, "manage-privilege") !== "1"
-    ) throw Except.PRIVILEGE_PAIR_FAILED;
+    ) throw ExceptCode.PRIVILEGE_PAIR_FAILED;
 
     // Obfuscates code
     const mask = obfuscateToken(code);
@@ -250,7 +262,7 @@ export function denyPrivilege(code: string, pkey: string, auth: string): void {
         `).run({ mask, pkey });
     }
     catch {
-        throw Except.PRIVILEGE_ENTRY_MISS;
+        throw ExceptCode.PRIVILEGE_ENTRY_MISS;
     }
 }
 export function checkPrivilege(code: string, pkey: string): string | null {

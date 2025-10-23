@@ -4,6 +4,11 @@ import * as base from "./base";
 // Extends sudo
 export const sudo = base.sudo;
 
+// Extends excepts
+export type ExceptCode = base.ExceptCode;
+export const ExceptCode = base.ExceptCode;
+export const exceptText = base.exceptText;
+
 // Overrides user methods
 export async function createUser(name: string, pass: string): Promise<string> {
     // Creates user
