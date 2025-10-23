@@ -8,6 +8,7 @@ export const sudo = base.sudo;
 export type ExceptCode = base.ExceptCode;
 export const ExceptCode = base.ExceptCode;
 export const exceptText = base.exceptText;
+export const exceptType = base.exceptType;
 
 // Overrides user methods
 export async function createUser(name: string, pass: string): Promise<string> {
@@ -16,7 +17,7 @@ export async function createUser(name: string, pass: string): Promise<string> {
     const uuid = base.uniqueUser(name);
 
     // Generates token
-    base.generateToken(name, pass);
+    await base.generateToken(name, pass);
     const code = await base.retrieveToken(name, pass);
 
     // Allows privilege

@@ -15,6 +15,11 @@ export const statusText: { [ statusCode in StatusCode ]: string; } = {
     [ StatusCode.MALFORMED_BODY ]: "Failed to parse incoming JSON: %reason%",
     [ StatusCode.RAISED_EXCEPT ]: "An exception was raised."
 };
+export const statusType: { [ statusCode in StatusCode ]: string; } = {
+    [ StatusCode.ACTION_SUCCESS ]: "ACTION_SUCCESS",
+    [ StatusCode.MALFORMED_BODY ]: "MALFORMED_BODY",
+    [ StatusCode.RAISED_EXCEPT ]: "RAISED_EXCEPT"
+};
 
 // Creates helpers
 export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
@@ -26,7 +31,8 @@ export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
             "status": {
                 "code": StatusCode.MALFORMED_BODY,
                 "text": statusText[StatusCode.MALFORMED_BODY]
-                    .replaceAll(/%reason%/g, result.error.message)
+                    .replaceAll(/%reason%/g, result.error.message),
+                "type": statusType[StatusCode.MALFORMED_BODY]
             }
         }, 400);
         return result.data;
@@ -39,7 +45,8 @@ export async function execute(context: Context, callback: () => unknown) {
         return context.json({
             "status": {
                 "code": StatusCode.ACTION_SUCCESS,
-                "text": statusText[StatusCode.ACTION_SUCCESS]
+                "text": statusText[StatusCode.ACTION_SUCCESS],
+                "type": statusType[StatusCode.ACTION_SUCCESS]
             },
             "data": data
         }, 200);
@@ -48,11 +55,13 @@ export async function execute(context: Context, callback: () => unknown) {
         return context.json({
             "status": {
                 "code": StatusCode.RAISED_EXCEPT,
-                "text": statusText[StatusCode.RAISED_EXCEPT]
+                "text": statusText[StatusCode.RAISED_EXCEPT],
+                "type": statusType[StatusCode.RAISED_EXCEPT]
             },
             "except": {
                 "code": error as core.ExceptCode,
-                "text": core.exceptText[error as core.ExceptCode]
+                "text": core.exceptText[error as core.ExceptCode],
+                "type": core.exceptType[error as core.ExceptCode]
             }
         }, 400);
     }

@@ -33,6 +33,18 @@ export const exceptText: { [ exceptCode in ExceptCode ]: string; } = {
     [ ExceptCode.PRIVILEGE_ENTRY_MISS ]: "Privilege entry does not exist.",
     [ ExceptCode.PRIVILEGE_PAIR_FAILED ]: "Privilege not authorized."
 };
+export const exceptType: { [ exceptCode in ExceptCode ]: string; } = {
+    [ ExceptCode.USER_ENTRY_HIT ]: "USER_ENTRY_HIT",
+    [ ExceptCode.USER_ENTRY_MISS ]: "USER_ENTRY_MISS",
+    [ ExceptCode.USER_NAME_INVALID ]: "USER_NAME_INVALID",
+    [ ExceptCode.USER_PASS_FAILED ]: "USER_PASS_FAILED",
+    [ ExceptCode.USER_PASS_INVALID ]: "USER_PASS_INVALID",
+    [ ExceptCode.TOKEN_ENTRY_HIT ]: "TOKEN_ENTRY_HIT",
+    [ ExceptCode.TOKEN_ENTRY_MISS ]: "TOKEN_ENTRY_MISS",
+    [ ExceptCode.PRIVILEGE_ENTRY_HIT ]: "PRIVILEGE_ENTRY_HIT",
+    [ ExceptCode.PRIVILEGE_ENTRY_MISS ]: "PRIVILEGE_ENTRY_MISS",
+    [ ExceptCode.PRIVILEGE_PAIR_FAILED ]: "PRIVILEGE_PAIR_FAILED"
+};
 
 // Creates sudo
 export const sudo = randomBytes(32).toBase64();

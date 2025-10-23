@@ -8,8 +8,5 @@
         "@types/bun": "latest"
     },
     "name": "dev-dmmdgm-utpa",
-    "scripts": {
-        "dev": "bun run --hot src/index.ts"
-    },
     "type": "module"
 }
