@@ -7,21 +7,24 @@ import * as core from "./core";
 // Defines statuses
 export enum StatusCode {
     ACTION_SUCCESS,
+    INTERNAL_ERROR,
     MALFORMED_BODY,
     RAISED_EXCEPT
 }
 export const statusText: { [ statusCode in StatusCode ]: string; } = {
     [ StatusCode.ACTION_SUCCESS ]: "Action was successful.",
+    [ StatusCode.INTERNAL_ERROR ]: "An internal error had occurred.",
     [ StatusCode.MALFORMED_BODY ]: "Failed to parse incoming JSON: %reason%",
     [ StatusCode.RAISED_EXCEPT ]: "An exception was raised."
 };
 export const statusType: { [ statusCode in StatusCode ]: string; } = {
     [ StatusCode.ACTION_SUCCESS ]: "ACTION_SUCCESS",
+    [ StatusCode.INTERNAL_ERROR ]: "INTERNAL_ERROR",
     [ StatusCode.MALFORMED_BODY ]: "MALFORMED_BODY",
     [ StatusCode.RAISED_EXCEPT ]: "RAISED_EXCEPT"
 };
 
-// Creates helpers
+// Defines helpers
 export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
     // Validates schema
     return validator("json", (value, context) => {
@@ -52,6 +55,13 @@ export async function execute(context: Context, callback: () => unknown) {
         }, 200);
     }
     catch(error) {
+        if(typeof error !== "number") return context.json({
+            "status": {
+                "code": StatusCode.INTERNAL_ERROR,
+                "text": statusText[StatusCode.INTERNAL_ERROR],
+                "type": statusType[StatusCode.INTERNAL_ERROR]
+            }
+        });
         return context.json({
             "status": {
                 "code": StatusCode.RAISED_EXCEPT,
@@ -69,6 +79,7 @@ export async function execute(context: Context, callback: () => unknown) {
 
 // Creates server
 export const app = new Hono()
+    // Defines user methods
     .post(
         "/create",
         enforce(zod.object({
@@ -129,7 +140,7 @@ export const app = new Hono()
             name: zod.string()
         })),
         (context) => execute(context, () => {
-            // Finds user UUID
+            // Fetches UUID
             const { name } = context.req.valid("json");
             const uuid = core.uniqueUser(name);
             return uuid;
@@ -141,12 +152,14 @@ export const app = new Hono()
             uuid: zod.string()
         })),
         (context) => execute(context, () => {
-            // Finds user name
+            // Fetches name
             const { uuid } = context.req.valid("json");
             const name = core.lookupUser(uuid);
             return name;
         })
     )
+
+    // Defines token methods
     .post(
         "/generate",
         enforce(zod.object({
@@ -185,6 +198,8 @@ export const app = new Hono()
             return name;
         })
     )
+
+    // Defines privilege methods
     .post(
         "/allow",
         enforce(zod.object({

@@ -24,9 +24,9 @@ export enum ExceptCode {
 export const exceptText: { [ exceptCode in ExceptCode ]: string; } = {
     [ ExceptCode.USER_ENTRY_HIT ]: "User entry already exists.",
     [ ExceptCode.USER_ENTRY_MISS ]: "User entry does not exist.",
-    [ ExceptCode.USER_NAME_INVALID ]: "User name must be three characters (alphabet, numbers, and underline only) or longer.",
+    [ ExceptCode.USER_NAME_INVALID ]: "User name must be at least 3 characters (a-z, A-Z, 0-9, and _) in length.",
     [ ExceptCode.USER_PASS_FAILED ]: "User pass does not match.",
-    [ ExceptCode.USER_PASS_INVALID ]: "User pass must be at least six characters in length.",
+    [ ExceptCode.USER_PASS_INVALID ]: "User pass must be at least 6 characters in length.",
     [ ExceptCode.TOKEN_ENTRY_HIT ]: "Token entry already exists.",
     [ ExceptCode.TOKEN_ENTRY_MISS ]: "Token entry does not exist.",
     [ ExceptCode.PRIVILEGE_ENTRY_HIT ]: "Privilege entry already exists.",
@@ -58,7 +58,7 @@ export async function createUser(name: string, pass: string): Promise<void> {
     if(pass.length < 6) throw ExceptCode.USER_PASS_INVALID;
     const hash = await Bun.password.hash(pass);
 
-    // Spawns uuid
+    // Spawns UUID
     const uuid = Bun.randomUUIDv7();
 
     // Writes commit

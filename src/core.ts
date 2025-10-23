@@ -52,7 +52,7 @@ export async function deleteUser(name: string, pass: string): Promise<void> {
     await base.deleteUser(name, pass);
 }
 export function uniqueUser(name: string): string {
-    // Fetches uuid
+    // Fetches UUID
     const uuid = base.uniqueUser(name);
     return uuid;
 }
