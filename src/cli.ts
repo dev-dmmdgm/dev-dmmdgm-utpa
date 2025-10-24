@@ -3,7 +3,25 @@ import chalk from "chalk";
 import { read } from "read";
 import * as core from "./core";
 
-// Defines helpers
+// Defines inputs
+export async function inquire(prompt: string): Promise<string> {
+    // Retrieves answer
+    const answer = await read({
+        prompt: chalk.yellow(prompt)
+    });
+    return answer;
+}
+export async function whisper(prompt: string): Promise<string> {
+    // Retrieves answer
+    const answer = await read({
+        prompt: chalk.yellow(prompt),
+        silent: true
+    });
+    process.stdout.write("\n");
+    return answer;
+}
+
+// Defines outputs
 export function exclaim(message: string): void {
     // Prints message
     process.stdout.write(chalk.cyan(message) + "\n");
@@ -28,50 +46,41 @@ export function warning(message: string): void {
     // Prints message
     process.stdout.write(chalk.red(message) + "\n");
 }
-export async function inquire(prompt: string): Promise<string> {
-    // Retrieves answer
-    const answer = await read({
-        prompt: chalk.yellow(prompt)
-    });
-    return answer;
-}
-export async function whisper(prompt: string): Promise<string> {
-    // Retrieves answer
-    const answer = await read({
-        prompt: chalk.yellow(prompt),
-        silent: true
-    });
-    process.stdout.write("\n");
-    return answer;
-}
-export async function execute(callback: () => Promise<boolean>): Promise<boolean> {
-    // Resolves process
+
+// Defines protector
+export async function protect(execute: () => Promise<boolean>): Promise<boolean> {
+    // Protects execution
     try {
-        const result = await callback();
+        // Attempts execution
+        const result = await execute();
         return result;
     }
     catch(error) {
+        // Ignores error
         if(typeof error !== "number") return false;
-        const text = core.exceptText[error as core.ExceptCode];
-        const type = core.exceptType[error as core.ExceptCode];
+
+        // Catches except
+        const text = core.exceptTexts[error as core.ExceptCode] ?? core.exceptTexts[core.ExceptCode.EXCEPT_UNKNOWN];
+        const type = core.exceptTypes[error as core.ExceptCode] ?? core.exceptTypes[core.ExceptCode.EXCEPT_UNKNOWN];
         warning(`${text} (${type})`);
         return false;
     }
 }
 
 // Creates registrar
-const registrar: { [ command in string ]: {
-    group: string;
+export type Operand = {
     hint: string;
-    run: (parameters: string[]) => Promise<boolean>;
-    usage: string;
-}; } = {
+    slot: string;
+    plug: (parameters: string[]) => Promise<boolean>;
+    rule: string;
+};
+const registrar: { [ command in string ]: Operand; } = {
     // Defines user methods
     "create": {
-        group: "user",
-        usage: "create [name]",
+        slot: "user",
+        rule: "create [name]",
         hint: "Creates a new user, then return its code in the console.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Create User ===");
             suggest("- Name must be at least 3 characters (a-z, A-Z, 0-9, and _) in length.");
@@ -97,10 +106,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "rename": {
-        group: "user",
-        usage: "rename [name] [rename]",
+        slot: "user",
+        rule: "rename [name] [rename]",
         hint: "Changes a user's name, then returns its code in the console.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Rename User ===");
             suggest("- Name must be at least 3 characters (a-z, A-Z, 0-9, and _) in length.");
@@ -120,10 +129,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "repass": {
-        group: "user",
-        usage: "repass [name]",
+        slot: "user",
+        rule: "repass [name]",
         hint: "Changes a user's pass, then regenerates and returns its code in the console.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Repass User ===");
             suggest("- Pass must be at least 6 characters in length.");
@@ -150,10 +159,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "delete": {
-        group: "user",
-        usage: "delete [name]",
+        slot: "user",
+        rule: "delete [name]",
         hint: "Deletes a user forever.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Delete User ===");
             suggest("- You cannot undo this operation!");
@@ -170,10 +179,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "unique": {
-        group: "user",
-        usage: "unique [name]",
+        slot: "user",
+        rule: "unique [name]",
         hint: "Fetches a user's UUID from name.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Fetch User UUID ===");
             
@@ -189,10 +198,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "lookup": {
-        group: "user",
-        usage: "lookup [name]",
+        slot: "user",
+        rule: "lookup [name]",
         hint: "Fetches a user's name from UUID.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Fetch User Name ===");
             
@@ -210,10 +219,10 @@ const registrar: { [ command in string ]: {
     
     // Defines token methods
     "generate": {
-        group: "token",
-        usage: "generate [name]",
+        slot: "token",
+        rule: "generate [name]",
         hint: "Generates a user's token and return its code in the console.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Generate Token ===");
             suggest("- This will invalidate your previous token.");
@@ -231,10 +240,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "retrieve": {
-        group: "token",
-        usage: "retrieve [name]",
+        slot: "token",
+        rule: "retrieve [name]",
         hint: "Returns a user's code in the console.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Retrieve Token ===");
             
@@ -251,10 +260,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "identify": {
-        group: "token",
-        usage: "identify",
+        slot: "token",
+        rule: "identify",
         hint: "Identifies a user's name from code.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Identify Token ===");
             
@@ -271,10 +280,10 @@ const registrar: { [ command in string ]: {
     
     // Defines privilege methods
     "allow": {
-        group: "privilege",
-        usage: "allow [pkey] [pval]",
+        slot: "privilege",
+        rule: "allow [pkey] [pval]",
         hint: "Allows or updates a token's privilege.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Allow Privilege ===");
             suggest("- You are now running in sudo mode.");
@@ -293,10 +302,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "deny": {
-        group: "privilege",
-        usage: "deny [pkey]",
+        slot: "privilege",
+        rule: "deny [pkey]",
         hint: "Deletes a token's privilege forever.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Deny Privilege ===");
             suggest("- You are now running in sudo mode.");
@@ -313,10 +322,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "check": {
-        group: "privilege",
-        usage: "check [pkey]",
+        slot: "privilege",
+        rule: "check [pkey]",
         hint: "Returns a token's privilege pval from privilege pkey.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Check Privilege ===");
             
@@ -333,10 +342,10 @@ const registrar: { [ command in string ]: {
         })
     },
     "list": {
-        group: "privilege",
-        usage: "list",
+        slot: "privilege",
+        rule: "list",
         hint: "Returns all token's privilege pkey and pval pairs.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== List Privileges ===");
             
@@ -354,60 +363,66 @@ const registrar: { [ command in string ]: {
     
     // Defines general methods
     "help": {
-        group: "general",
-        usage: "help [command]",
+        slot: "general",
+        rule: "help [command]",
         hint: "Displays more information about commands.",
-        run: (parameters: string[]) => execute(async () => {
+        plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Help ===");
+            suggest("- Use help [command] for more specific details.");
 
-            // Prints menu
+            // Displays all
             if(parameters.length === 0) {
                 // Initializes menu
-                const branches: { [ group in string ]: typeof registrar[string][]; } = {};
+                const slots: { [ slot in string ]: Operand[]; } = {};
 
                 // Classifies menu
                 for(let command in registrar) {
-                    const control = registrar[command];
-                    const group = control.group;
-                    if(group in branches) branches[group].push(control);
-                    else branches[group] = [ control ];
+                    const operand = registrar[command];
+                    const slot = operand.slot;
+                    if(slot in slots) slots[slot].push(operand);
+                    else slots[slot] = [ operand ];
                 }
 
                 // Prints menu
-                for(let group in branches) {
-                    const branch = branches[group];
-                    display(group);
-                    for(let i = 0; i < branch.length; i++) {
-                        const control = branch[i];
-                        display("    " + control.usage);
-                        suggest("        " + control.hint);
-                    }
+                for(let slot in slots) {
+                    const operands = slots[slot];
                     display("");
+                    display(slot);
+                    for(let i = 0; i < operands.length; i++) {
+                        const operand = operands[i];
+                        display("  " + operand.rule);
+                        suggest("    " + operand.hint);
+                    }
                 }
                 return true;
             }
 
-            // Prints details
+            // Displays one
             const command = parameters[0];
             if(command in registrar) {
-                const control = registrar[command];
-                display(control.usage);
-                suggest("    " + control.hint);
+                const operand = registrar[command];
                 display("");
+                display(operand.rule);
+                suggest("  " + operand.hint);
                 return true;
             }
 
+            // Displays none 
+            display("");
+            warning("Command not found.");
             return false;
         })
     }
 }
 
-// Defines handler
+// Defines interpreter
 export async function interpret(command: string, parameters: string[]): Promise<boolean> {
-    // Runs command
-    if(command in registrar)
-        return await registrar[command].run(parameters);
+    // Plugs command
+    if(command in registrar) {
+        const result = await registrar[command].plug(parameters);
+        return result;
+    }
     
     // Displays fallback message
     warning(`Invalid command '${command}'.`);
@@ -417,8 +432,8 @@ export async function interpret(command: string, parameters: string[]): Promise<
 // Interprets command
 if(import.meta.main) {
     const [ command, ...parameters ] = process.argv.slice(2);
-    const success = await interpret(command, parameters);
-    process.exit(success ? 0 : 1);
+    const result = await interpret(command, parameters);
+    process.exit(result ? 0 : 1);
 }
 
 // Exports

@@ -7,8 +7,8 @@ export const sudo = base.sudo;
 // Extends excepts
 export type ExceptCode = base.ExceptCode;
 export const ExceptCode = base.ExceptCode;
-export const exceptText = base.exceptText;
-export const exceptType = base.exceptType;
+export const exceptTexts = base.exceptTexts;
+export const exceptTypes = base.exceptTypes;
 
 // Overrides user methods
 export async function createUser(name: string, pass: string): Promise<string> {

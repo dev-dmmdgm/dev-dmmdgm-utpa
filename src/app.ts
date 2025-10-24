@@ -11,67 +11,89 @@ export enum StatusCode {
     MALFORMED_BODY,
     RAISED_EXCEPT
 }
-export const statusText: { [ statusCode in StatusCode ]: string; } = {
+export const statusTexts: { [ statusCode in StatusCode ]: string; } = {
     [ StatusCode.ACTION_SUCCESS ]: "Action was successful.",
     [ StatusCode.INTERNAL_ERROR ]: "An internal error had occurred.",
     [ StatusCode.MALFORMED_BODY ]: "Failed to parse incoming JSON: %reason%",
     [ StatusCode.RAISED_EXCEPT ]: "An exception was raised."
 };
-export const statusType: { [ statusCode in StatusCode ]: string; } = {
+export const statusTypes: { [ statusCode in StatusCode ]: string; } = {
     [ StatusCode.ACTION_SUCCESS ]: "ACTION_SUCCESS",
     [ StatusCode.INTERNAL_ERROR ]: "INTERNAL_ERROR",
     [ StatusCode.MALFORMED_BODY ]: "MALFORMED_BODY",
     [ StatusCode.RAISED_EXCEPT ]: "RAISED_EXCEPT"
 };
 
-// Defines helpers
+// Defines enforcer
 export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
     // Validates schema
-    return validator("json", (value, context) => {
+    const validate = validator("json", (value, context) => {
         // Parses value
         const result = schema.safeParse(value);
         if(!result.success) return context.json({
             "status": {
                 "code": StatusCode.MALFORMED_BODY,
-                "text": statusText[StatusCode.MALFORMED_BODY]
+                "text": statusTexts[StatusCode.MALFORMED_BODY]
                     .replaceAll(/%reason%/g, result.error.message),
-                "type": statusType[StatusCode.MALFORMED_BODY]
+                "type": statusTypes[StatusCode.MALFORMED_BODY]
             }
         }, 400);
         return result.data;
     });
+    return validate;
 }
-export async function execute(context: Context, callback: () => unknown) {
-    // Resolves response
+
+// Defines protector
+export async function protect(context: Context, execute: () => unknown) {
+    // Protects execution
     try {
-        const data = await callback();
+        // Attempts execution
+        const data = await execute();
+        const statusCode = StatusCode.ACTION_SUCCESS;
+        const statusText = statusTexts[statusCode];
+        const statusType = statusTypes[statusCode];
         return context.json({
             "status": {
-                "code": StatusCode.ACTION_SUCCESS,
-                "text": statusText[StatusCode.ACTION_SUCCESS],
-                "type": statusType[StatusCode.ACTION_SUCCESS]
+                "code": statusCode,
+                "text": statusText,
+                "type": statusType
             },
             "data": data
         }, 200);
     }
     catch(error) {
-        if(typeof error !== "number") return context.json({
-            "status": {
-                "code": StatusCode.INTERNAL_ERROR,
-                "text": statusText[StatusCode.INTERNAL_ERROR],
-                "type": statusType[StatusCode.INTERNAL_ERROR]
-            }
-        });
+        // Reports error
+        if(typeof error !== "number") {
+            const statusCode = StatusCode.INTERNAL_ERROR;
+            const statusText = statusTexts[statusCode];
+            const statusType = statusTypes[statusCode];
+            return context.json({
+                "status": {
+                    "code": statusCode,
+                    "text": statusText,
+                    "type": statusType
+                }
+            });
+        }
+
+        // Catches except
+        const statusCode = StatusCode.RAISED_EXCEPT;
+        const statusText = statusTexts[statusCode];
+        const statusType = statusTypes[statusCode];
+        const exceptCode = error in core.ExceptCode ?
+            error as core.ExceptCode : core.ExceptCode.EXCEPT_UNKNOWN;
+        const exceptText = core.exceptTexts[exceptCode];
+        const exceptType = core.exceptTypes[exceptCode];
         return context.json({
             "status": {
-                "code": StatusCode.RAISED_EXCEPT,
-                "text": statusText[StatusCode.RAISED_EXCEPT],
-                "type": statusType[StatusCode.RAISED_EXCEPT]
+                "code": statusCode,
+                "text": statusText,
+                "type": statusType
             },
             "except": {
-                "code": error as core.ExceptCode,
-                "text": core.exceptText[error as core.ExceptCode],
-                "type": core.exceptType[error as core.ExceptCode]
+                "code": exceptCode,
+                "text": exceptText,
+                "type": exceptType
             }
         }, 400);
     }
@@ -86,7 +108,7 @@ export const app = new Hono()
             name: zod.string(),
             pass: zod.string()
         })),
-        (context) => execute(context, async () => {
+        (context) => protect(context, async () => {
             // Creates user
             const { name, pass } = context.req.valid("json");
             const code = await core.createUser(name, pass);
@@ -100,7 +122,7 @@ export const app = new Hono()
             pass: zod.string(),
             rename: zod.string()
         })),
-        (context) => execute(context, async () => {
+        (context) => protect(context, async () => {
             // Renames user
             const { name, pass, rename } = context.req.valid("json");
             const code = core.renameUser(name, pass, rename);
@@ -114,7 +136,7 @@ export const app = new Hono()
             pass: zod.string(),
             repass: zod.string()
         })),
-        (context) => execute(context, async () => {
+        (context) => protect(context, async () => {
             // Repasses user
             const { name, pass, repass } = context.req.valid("json");
             const code = await core.repassUser(name, pass, repass);
@@ -127,7 +149,7 @@ export const app = new Hono()
             name: zod.string(),
             pass: zod.string()
         })),
-        (context) => execute(context, async () => {
+        (context) => protect(context, async () => {
             // Deletes user
             const { name, pass } = context.req.valid("json");
             await core.deleteUser(name, pass);
@@ -139,7 +161,7 @@ export const app = new Hono()
         enforce(zod.object({
             name: zod.string()
         })),
-        (context) => execute(context, () => {
+        (context) => protect(context, () => {
             // Fetches UUID
             const { name } = context.req.valid("json");
             const uuid = core.uniqueUser(name);
@@ -151,7 +173,7 @@ export const app = new Hono()
         enforce(zod.object({
             uuid: zod.string()
         })),
-        (context) => execute(context, () => {
+        (context) => protect(context, () => {
             // Fetches name
             const { uuid } = context.req.valid("json");
             const name = core.lookupUser(uuid);
@@ -166,7 +188,7 @@ export const app = new Hono()
             name: zod.string(),
             pass: zod.string()
         })),
-        (context) => execute(context, async () => {
+        (context) => protect(context, async () => {
             // Generates token
             const { name, pass } = context.req.valid("json");
             const code = await core.generateToken(name, pass);
@@ -179,7 +201,7 @@ export const app = new Hono()
             name: zod.string(),
             pass: zod.string()
         })),
-        (context) => execute(context, async () => {
+        (context) => protect(context, async () => {
             // Retrieves token
             const { name, pass } = context.req.valid("json");
             const code = await core.generateToken(name, pass);
@@ -191,7 +213,7 @@ export const app = new Hono()
         enforce(zod.object({
             code: zod.string()
         })),
-        (context) => execute(context, () => {
+        (context) => protect(context, () => {
             // Identifies token
             const { code } = context.req.valid("json");
             const name = core.identifyToken(code);
@@ -208,7 +230,7 @@ export const app = new Hono()
             pkey: zod.string(),
             pval: zod.string()
         })),
-        (context) => execute(context, () => {
+        (context) => protect(context, () => {
             // Allows privilege
             const { auth, code, pkey, pval } = context.req.valid("json");
             core.allowPrivilege(code, pkey, pval, auth);
@@ -222,7 +244,7 @@ export const app = new Hono()
             code: zod.string(),
             pkey: zod.string()
         })),
-        (context) => execute(context, () => {
+        (context) => protect(context, () => {
             // Denies privilege
             const { auth, code, pkey } = context.req.valid("json");
             core.denyPrivilege(code, pkey, auth);
@@ -235,7 +257,7 @@ export const app = new Hono()
             code: zod.string(),
             pkey: zod.string()
         })),
-        (context) => execute(context, () => {
+        (context) => protect(context, () => {
             // Checks privilege
             const { code, pkey } = context.req.valid("json");
             const pval = core.checkPrivilege(code, pkey);
@@ -247,7 +269,7 @@ export const app = new Hono()
         enforce(zod.object({
             code: zod.string()
         })),
-        (context) => execute(context, () => {
+        (context) => protect(context, () => {
             // List privileges
             const { code } = context.req.valid("json");
             const pairs = core.listPrivileges(code);

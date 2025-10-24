@@ -19,9 +19,10 @@ export enum ExceptCode {
     TOKEN_ENTRY_MISS,
     PRIVILEGE_ENTRY_HIT,
     PRIVILEGE_ENTRY_MISS,
-    PRIVILEGE_PAIR_FAILED
+    PRIVILEGE_PAIR_FAILED,
+    EXCEPT_UNKNOWN
 }
-export const exceptText: { [ exceptCode in ExceptCode ]: string; } = {
+export const exceptTexts: { [ exceptCode in ExceptCode ]: string; } = {
     [ ExceptCode.USER_ENTRY_HIT ]: "User entry already exists.",
     [ ExceptCode.USER_ENTRY_MISS ]: "User entry does not exist.",
     [ ExceptCode.USER_NAME_INVALID ]: "User name must be at least 3 characters (a-z, A-Z, 0-9, and _) in length.",
@@ -31,9 +32,10 @@ export const exceptText: { [ exceptCode in ExceptCode ]: string; } = {
     [ ExceptCode.TOKEN_ENTRY_MISS ]: "Token entry does not exist.",
     [ ExceptCode.PRIVILEGE_ENTRY_HIT ]: "Privilege entry already exists.",
     [ ExceptCode.PRIVILEGE_ENTRY_MISS ]: "Privilege entry does not exist.",
-    [ ExceptCode.PRIVILEGE_PAIR_FAILED ]: "Privilege not authorized."
+    [ ExceptCode.PRIVILEGE_PAIR_FAILED ]: "Privilege not authorized.",
+    [ ExceptCode.EXCEPT_UNKNOWN ]: "Unknown exception."
 };
-export const exceptType: { [ exceptCode in ExceptCode ]: string; } = {
+export const exceptTypes: { [ exceptCode in ExceptCode ]: string; } = {
     [ ExceptCode.USER_ENTRY_HIT ]: "USER_ENTRY_HIT",
     [ ExceptCode.USER_ENTRY_MISS ]: "USER_ENTRY_MISS",
     [ ExceptCode.USER_NAME_INVALID ]: "USER_NAME_INVALID",
@@ -43,7 +45,8 @@ export const exceptType: { [ exceptCode in ExceptCode ]: string; } = {
     [ ExceptCode.TOKEN_ENTRY_MISS ]: "TOKEN_ENTRY_MISS",
     [ ExceptCode.PRIVILEGE_ENTRY_HIT ]: "PRIVILEGE_ENTRY_HIT",
     [ ExceptCode.PRIVILEGE_ENTRY_MISS ]: "PRIVILEGE_ENTRY_MISS",
-    [ ExceptCode.PRIVILEGE_PAIR_FAILED ]: "PRIVILEGE_PAIR_FAILED"
+    [ ExceptCode.PRIVILEGE_PAIR_FAILED ]: "PRIVILEGE_PAIR_FAILED",
+    [ ExceptCode.EXCEPT_UNKNOWN ]: "EXCEPT_UNKNOWN"
 };
 
 // Creates sudo
