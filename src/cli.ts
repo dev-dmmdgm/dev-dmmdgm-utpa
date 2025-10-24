@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 // Imports
 import chalk from "chalk";
 import { read } from "read";
@@ -79,7 +81,7 @@ const registrar: { [ command in string ]: Operand; } = {
     "create": {
         slot: "user",
         rule: "create [name]",
-        hint: "Creates a new user, then return its code in the console.",
+        hint: "Creates a new user, then returns its code in the console.",
         plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Create User ===");
@@ -324,7 +326,7 @@ const registrar: { [ command in string ]: Operand; } = {
     "check": {
         slot: "privilege",
         rule: "check [pkey]",
-        hint: "Returns a token's privilege pval from privilege pkey.",
+        hint: "Returns a token's privilege pval from privilege pkey in the console.",
         plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== Check Privilege ===");
@@ -344,7 +346,7 @@ const registrar: { [ command in string ]: Operand; } = {
     "list": {
         slot: "privilege",
         rule: "list",
-        hint: "Returns all token's privilege pkey and pval pairs.",
+        hint: "Returns all token's privilege pkey and pval pairs in the console.",
         plug: (parameters: string[]) => protect(async () => {
             // Prints header
             exclaim("=== List Privileges ===");
@@ -432,7 +434,7 @@ export async function interpret(command: string, parameters: string[]): Promise<
 // Interprets command
 if(import.meta.main) {
     const [ command, ...parameters ] = process.argv.slice(2);
-    const result = await interpret(command, parameters);
+    const result = await interpret(command ?? "help", parameters);
     process.exit(result ? 0 : 1);
 }
 

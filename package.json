@@ -9,5 +9,8 @@
         "@types/bun": "latest"
     },
     "name": "dev-dmmdgm-utpa",
-    "type": "module"
+    "type": "module",
+    "bin": {
+        "utpa": "./src/cli.ts"
+    }
 }
