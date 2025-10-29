@@ -1,7 +1,7 @@
 // Imports
 import BunSqlite from "bun:sqlite";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import * as except from "./except";
+import * as status from "./status";
 
 // Creates database
 const database = new BunSqlite("database.sqlite", { strict: true });
@@ -9,10 +9,10 @@ const database = new BunSqlite("database.sqlite", { strict: true });
 // Defines user methods
 export async function createUser(name: string, pass: string): Promise<void> {
     // Tests name
-    if(!/^[a-zA-Z0-9_]{3,}$/.test(name)) throw except.Code.USER_NAME_INVALID;
+    if(!/^[a-zA-Z0-9_]{3,}$/.test(name)) throw status.Code.USER_NAME_INVALID;
 
     // Hashes pass
-    if(pass.length < 6) throw except.Code.USER_PASS_INVALID;
+    if(pass.length < 6) throw status.Code.USER_PASS_INVALID;
     const hash = await Bun.password.hash(pass);
 
     // Spawns UUID
@@ -25,7 +25,7 @@ export async function createUser(name: string, pass: string): Promise<void> {
         `).run({ hash, name, uuid });
     }
     catch {
-        throw except.Code.USER_CREATE_FAILED;
+        throw status.Code.USER_CREATE_FAILED;
     }
 
     // Generates token
@@ -35,9 +35,21 @@ export async function createUser(name: string, pass: string): Promise<void> {
     // Allows privilege
     allowPrivilege(code, "uuid", uuid);
 }
+export async function verifyUser(name: string, pass: string): Promise<boolean> {
+    // Reads from database
+    const user = database.query(`
+        SELECT hash FROM users WHERE name = $name;
+    `).get({ name }) as {
+        hash: string;
+    } | null;
+    if(user === null) throw status.Code.USER_ENTRY_MISSING;
+    
+    // Verifies pass
+    return await Bun.password.verify(pass, user.hash);
+}
 export function renameUser(name: string, rename: string): void {
     // Tests rename
-    if(!/^[a-zA-Z0-9_]{3,}$/.test(rename)) throw except.Code.USER_NAME_INVALID;
+    if(!/^[a-zA-Z0-9_]{3,}$/.test(rename)) throw status.Code.USER_NAME_INVALID;
 
     // Writes to database
     try {
@@ -46,12 +58,12 @@ export function renameUser(name: string, rename: string): void {
         `).run({ name, rename });
     }
     catch {
-        throw except.Code.USER_RENAME_FAILED;
+        throw status.Code.USER_RENAME_FAILED;
     }
 }
 export async function repassUser(name: string, repass: string): Promise<void> {
     // Hashes repass
-    if(repass.length < 6) throw except.Code.USER_PASS_INVALID;
+    if(repass.length < 6) throw status.Code.USER_PASS_INVALID;
     const rehash = await Bun.password.hash(repass);
 
     // Writes to database
@@ -61,7 +73,7 @@ export async function repassUser(name: string, repass: string): Promise<void> {
         `).run({ name, rehash });
     }
     catch {
-        throw except.Code.USER_REPASS_FAILED;
+        throw status.Code.USER_REPASS_FAILED;
     }
 
     // Generates token
@@ -75,20 +87,8 @@ export function deleteUser(name: string): void {
         `).run({ name });
     }
     catch {
-        throw except.Code.USER_DELETE_FAILED;
+        throw status.Code.USER_DELETE_FAILED;
     }
-}
-export async function verifyUser(name: string, pass: string): Promise<boolean> {
-    // Reads from database
-    const user = database.query(`
-        SELECT hash FROM users WHERE name = $name;
-    `).get({ name }) as {
-        hash: string;
-    } | null;
-    if(user === null) throw except.Code.USER_ENTRY_MISSING;
-    
-    // Verifies pass
-    return await Bun.password.verify(pass, user.hash);
 }
 export function uniqueUser(name: string): string {
     // Reads from database
@@ -97,7 +97,7 @@ export function uniqueUser(name: string): string {
     `).get({ name }) as {
         uuid: string;
     } | null;
-    if(user === null) throw except.Code.USER_ENTRY_MISSING;
+    if(user === null) throw status.Code.USER_ENTRY_MISSING;
     
     // Returns UUID
     return user.uuid;
@@ -109,7 +109,7 @@ export function lookupUser(uuid: string): string {
     `).get({ uuid }) as {
         name: string;
     } | null;
-    if(user === null) throw except.Code.USER_ENTRY_MISSING;
+    if(user === null) throw status.Code.USER_ENTRY_MISSING;
 
     // Returns name
     return user.name;
@@ -156,7 +156,7 @@ export function generateToken(name: string, pass: string): void {
         `).run({ mask, name, sign });
     }
     catch {
-        throw except.Code.TOKEN_GENERATE_FAILED;
+        throw status.Code.TOKEN_GENERATE_FAILED;
     }
 }
 export function retrieveToken(name: string, pass: string): string {
@@ -166,7 +166,7 @@ export function retrieveToken(name: string, pass: string): string {
     `).get({ name }) as {
         sign: string;
     } | null;
-    if(token === null) throw except.Code.TOKEN_ENTRY_MISSING;
+    if(token === null) throw status.Code.TOKEN_ENTRY_MISSING;
 
     // Decrypts token
     return decryptToken(token.sign, pass);
@@ -181,7 +181,7 @@ export function identifyToken(code: string): string {
     `).get({ mask }) as {
         name: string;
     } | null;
-    if(token === null) throw except.Code.TOKEN_ENTRY_MISSING;
+    if(token === null) throw status.Code.TOKEN_ENTRY_MISSING;
 
     // Returns name
     return token.name;
@@ -234,7 +234,7 @@ export function allowPrivilege(code: string, pkey: string, pval: string): void {
         `).run({ mask, pkey, pval });
     }
     catch {
-        throw except.Code.PRIVILEGE_ALLOW_FAILED;
+        throw status.Code.PRIVILEGE_ALLOW_FAILED;
     }
 }
 export function denyPrivilege(code: string, pkey: string): void {
@@ -248,7 +248,7 @@ export function denyPrivilege(code: string, pkey: string): void {
         `).run({ mask, pkey });
     }
     catch {
-        throw except.Code.PRIVILEGE_DENY_FAILED;
+        throw status.Code.PRIVILEGE_DENY_FAILED;
     }
 }
 export function checkPrivilege(code: string, pkey: string): string | null {

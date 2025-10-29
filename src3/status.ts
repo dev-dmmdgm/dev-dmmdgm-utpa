@@ -1,4 +1,4 @@
-// Defines except
+// Defines codes
 export enum Code {
     /* Action */
     ACTION_SUCCESSFUL,
@@ -34,7 +34,9 @@ export enum Code {
     PRIVILEGE_CHECK_FAILED,
     PRIVILEGE_LIST_FAILED
 }
-export const text: { [ code in Code ]: string; } = {
+
+// Defines texts
+export const texts: { [ code in Code ]: string; } = {
     /* Action */
     [ Code.ACTION_SUCCESSFUL ]: "Successfully processed action.",
     [ Code.MALFORMED_BODY ]: "JSON body is invalid, perhaps due to missing fields or incorrect data types.",
@@ -69,7 +71,9 @@ export const text: { [ code in Code ]: string; } = {
     [ Code.PRIVILEGE_CHECK_FAILED ]: "Failed to check privilege. Privilege entry does not exist.",
     [ Code.PRIVILEGE_LIST_FAILED ]: "Failed to list privilege. Privilege entries do not exist."  
 };
-export const types: { [ exceptCode in Code ]: string; } = {
+
+// Defines types
+export const types: { [ code in Code ]: string; } = {
     /* Action */
     [ Code.ACTION_SUCCESSFUL ]: "ACTION_SUCCESSFUL",
     [ Code.MALFORMED_BODY ]: "MALFORMED_BODY",
