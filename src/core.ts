@@ -139,11 +139,15 @@ export function generateToken(name: string, pass: string): void {
     const mask = sourceToken(code);
 
     // Writes to database
-    const result = database.prepare(`
-        INSERT INTO tokens VALUES ($mask, $sign, $name)
-            ON CONFLICT (name) DO UPDATE SET mask = $mask, sign = $sign WHERE name = $name;
-    `).run({ mask, name, sign });
-    if(result.changes === 0) throw status.Code.TOKEN_GENERATE_FAILED;
+    try {
+        database.prepare(`
+            INSERT INTO tokens VALUES ($mask, $sign, $name)
+                ON CONFLICT (name) DO UPDATE SET mask = $mask, sign = $sign WHERE name = $name;
+        `).run({ mask, name, sign });
+    }
+    catch {
+        throw status.Code.TOKEN_GENERATE_FAILED;
+    }
 }
 export function retrieveToken(name: string, pass: string): string {
     // Reads from database
@@ -218,11 +222,15 @@ export function allowPrivilege(code: string, pkey: string, pval: string): void {
     const mask = sourceToken(code);
 
     // Writes to database
-    const result = database.prepare(`
-        INSERT INTO privileges VALUES ($mask, $pkey, $pval)
-            ON CONFLICT (mask, pkey) DO UPDATE SET pval = $pval WHERE mask = $mask AND pkey = $pkey;
-    `).run({ mask, pkey, pval });
-    if(result.changes === 0) throw status.Code.PRIVILEGE_ALLOW_FAILED;
+    try {
+        database.prepare(`
+            INSERT INTO privileges VALUES ($mask, $pkey, $pval)
+                ON CONFLICT (mask, pkey) DO UPDATE SET pval = $pval WHERE mask = $mask AND pkey = $pkey;
+        `).run({ mask, pkey, pval });
+    }
+    catch {
+        throw status.Code.PRIVILEGE_ALLOW_FAILED;
+    }
 }
 export function denyPrivilege(code: string, pkey: string): void {
     // Sources mask
