@@ -103,7 +103,7 @@ const registrar: { [ command in string ]: Operand; } = {
             const conrepass = await inquire("Please confirm your new pass:", true);
 
             // Repasses user
-            if(pass !== conrepass) throw status.Code.USER_PASS_MISMATCH;
+            if(repass !== conrepass) throw status.Code.USER_PASS_MISMATCH;
             if(!sudo && !await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
             await core.repassUser(name, repass);
 
@@ -159,7 +159,7 @@ const registrar: { [ command in string ]: Operand; } = {
                 parameters[0] : await inquire("Please enter a uuid:");
 
             // Fetches name
-            const name = core.uniqueUser(uuid);
+            const name = core.lookupUser(uuid);
 
             // Returns name
             display("User found!", chalk.green);
@@ -282,7 +282,7 @@ const registrar: { [ command in string ]: Operand; } = {
                 parameters[0] : await inquire("Please enter a pkey:");
             const pval = parameters.length >= 2 ?
                 parameters[1] : await inquire("Please enter a pval:");
-            const auth = sudo ? "" : await inquire("Please enter a code:", true);
+            const auth = sudo ? "" : await inquire("Please enter an auth:", true);
 
             // Allows privilege
             if(!sudo && core.checkPrivilege(auth, "manage-privileges") !== "1") throw status.Code.TOKEN_CODE_BLOCKED;
@@ -302,7 +302,7 @@ const registrar: { [ command in string ]: Operand; } = {
             const code = await inquire("Please enter a code:", true);
             const pkey = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter a pkey:");
-            const auth = sudo ? "" : await inquire("Please enter a code:", true);
+            const auth = sudo ? "" : await inquire("Please enter an auth:", true);
 
             // Denies privilege
             if(!sudo && core.checkPrivilege(auth, "manage-privileges") !== "1") throw status.Code.TOKEN_CODE_BLOCKED;

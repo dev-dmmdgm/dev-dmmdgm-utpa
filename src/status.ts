@@ -49,8 +49,8 @@ export const texts: { [ code in Code ]: string; } = {
 
     /* User */
     [ Code.USER_ENTRY_MISSING ]: "User entry does not exist.",
-    [ Code.USER_NAME_INVALID ]: "User name must be at least 6 characters (a-z, A-Z, 0-9, _) in length.",
-    [ Code.USER_PASS_INVALID ]: "User pass must be at least 3 characters in length.",
+    [ Code.USER_NAME_INVALID ]: "User name must be at least 3 characters (a-z, A-Z, 0-9, _) in length.",
+    [ Code.USER_PASS_INVALID ]: "User pass must be at least 6 characters in length.",
     [ Code.USER_PASS_BLOCKED ]: "User pass does not match its hash.",
     [ Code.USER_PASS_MISMATCH ]: "Confirmation pass is different than the original pass.",
     [ Code.USER_CREATE_FAILED ]: "Failed to create user. User name is already in use.",
