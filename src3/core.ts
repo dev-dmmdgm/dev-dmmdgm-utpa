@@ -42,7 +42,7 @@ export async function verifyUser(name: string, pass: string): Promise<boolean> {
     `).get({ name }) as {
         hash: string;
     } | null;
-    if(user === null) throw status.Code.USER_ENTRY_MISSING;
+    if(user === null) throw status.Code.USER_VERIFY_FAILED;
     
     // Verifies pass
     return await Bun.password.verify(pass, user.hash);
@@ -97,7 +97,7 @@ export function uniqueUser(name: string): string {
     `).get({ name }) as {
         uuid: string;
     } | null;
-    if(user === null) throw status.Code.USER_ENTRY_MISSING;
+    if(user === null) throw status.Code.USER_UNIQUE_FAILED;
     
     // Returns UUID
     return user.uuid;
@@ -109,7 +109,7 @@ export function lookupUser(uuid: string): string {
     `).get({ uuid }) as {
         name: string;
     } | null;
-    if(user === null) throw status.Code.USER_ENTRY_MISSING;
+    if(user === null) throw status.Code.USER_LOOKUP_FAILED;
 
     // Returns name
     return user.name;
@@ -123,6 +123,7 @@ export function obtainUsers(size: number, page: number): string[] {
     `).all({ limit, offset }) as {
         uuid: string;
     }[];
+    if(users.length === 0) throw status.Code.USER_OBTAIN_FAILED;
 
     // Returns UUIDs
     return users.map((user) => user.uuid);
@@ -136,6 +137,7 @@ export function revealUsers(size: number, page: number): string[] {
     `).all({ limit, offset }) as {
         name: string;
     }[];
+    if(users.length === 0) throw status.Code.USER_REVEAL_FAILED;
 
     // Returns names
     return users.map((user) => user.name);
@@ -143,7 +145,7 @@ export function revealUsers(size: number, page: number): string[] {
 
 // Defines token methods
 export function generateToken(name: string, pass: string): void {
-    // Generates token
+    // Generates code
     const code = randomBytes(32).toString("base64");
     const sign = encryptToken(code, pass);
     const mask = sourceToken(code);
@@ -172,7 +174,7 @@ export function retrieveToken(name: string, pass: string): string {
     return decryptToken(token.sign, pass);
 }
 export function identifyToken(code: string): string {
-    // Sources token
+    // Sources mask
     const mask = sourceToken(code);
 
     // Reads from database
@@ -187,7 +189,7 @@ export function identifyToken(code: string): string {
     return token.name;
 }
 export function encryptToken(code: string, pass: string): string {
-    // Encrypts token
+    // Encrypts code
     const salt = randomBytes(16).toString("hex");
     const key = createHash("sha-256").update(Buffer.from(pass + salt, "utf8")).digest("hex");
     const vector = randomBytes(16).toString("hex");
@@ -203,7 +205,7 @@ export function encryptToken(code: string, pass: string): string {
     return [ warp, salt, vector, tag ].join(";");
 }
 export function decryptToken(sign: string, pass: string): string {
-    // Decrypts token
+    // Decrypts sign
     const [ warp, salt, vector, tag ] = sign.split(";");
     const key = createHash("sha-256").update(Buffer.from(pass + salt, "utf8")).digest("hex");
     const decipher = createDecipheriv(
@@ -214,7 +216,12 @@ export function decryptToken(sign: string, pass: string): string {
     decipher.setAuthTag(Buffer.from(tag, "hex"));
     
     // Returns code
-    return decipher.update(warp, "hex", "base64") + decipher.final("base64");
+    try {
+        return decipher.update(warp, "hex", "base64") + decipher.final("base64");
+    }
+    catch {
+        throw status.Code.USER_PASS_BLOCKED;
+    }
 }
 export function sourceToken(code: string): string {
     // Returns mask
@@ -223,7 +230,7 @@ export function sourceToken(code: string): string {
 
 // Defines privilege methods
 export function allowPrivilege(code: string, pkey: string, pval: string): void {
-    // Sources token
+    // Sources mask
     const mask = sourceToken(code);
 
     // Writes to database
@@ -238,7 +245,7 @@ export function allowPrivilege(code: string, pkey: string, pval: string): void {
     }
 }
 export function denyPrivilege(code: string, pkey: string): void {
-    // Sources token
+    // Sources mask
     const mask = sourceToken(code);
 
     // Writes to database
@@ -252,7 +259,7 @@ export function denyPrivilege(code: string, pkey: string): void {
     }
 }
 export function checkPrivilege(code: string, pkey: string): string | null {
-    // Sources token
+    // Sources mask
     const mask = sourceToken(code);
 
     // Reads from database
@@ -266,7 +273,7 @@ export function checkPrivilege(code: string, pkey: string): string | null {
     return privilege === null ? null : privilege.pval;
 }
 export function listPrivileges(code: string): { [ pkey in string ]: string; } {
-    // Sources token
+    // Sources mask
     const mask = sourceToken(code);
 
     // Reads from database
@@ -276,6 +283,7 @@ export function listPrivileges(code: string): { [ pkey in string ]: string; } {
         pval: string;
         pkey: string;
     }[];
+    if(privileges.length === 0) throw status.Code.PRIVILEGE_LIST_FAILED;
 
     // Returns pairs
     const pairs: { [ pkey in string ]: string; } = {};
