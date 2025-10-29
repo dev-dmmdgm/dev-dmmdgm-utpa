@@ -216,7 +216,7 @@ const registrar: { [ command in string ]: Operand; } = {
     "generate": {
         slot: "token",
         rule: "generate [name]",
-        hint: "Generates a user's token.",
+        hint: "Generates a user's token. This action will invalidate the user's previous token.",
         plug: (parameters: string[], sudo: boolean) => protect(async () => {
             // Parses inputs
             const name = parameters.length >= 1 ?
@@ -255,7 +255,7 @@ const registrar: { [ command in string ]: Operand; } = {
     "identify": {
         slot: "token",
         rule: "identify",
-        hint: "Identifies a user's name from token code and prints result in console.",
+        hint: "Identifies a user's name from a token code and prints result in console.",
         plug: () => protect(async () => {
             // Parses inputs
             const code = await inquire("Please enter a code:", true);

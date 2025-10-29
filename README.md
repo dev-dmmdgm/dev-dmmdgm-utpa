@@ -34,35 +34,35 @@ PORT=3000 bun src/app
 ---
 
 ### POST `/create`
-Creates a new user, then return its code.
+Creates a new user.
 ```ts
 type Input = {
     name: string;
     pass: string;
 };
-type Output = string;
+type Output = null;
 ```
 
 ### POST `/rename`
-Changes a user's name, then returns its code.
+Changes a user's name.
 ```ts
 type Input = {
     name: string;
     pass: string;
     rename: string;
 };
-type Output = string;
+type Output = null;
 ```
 
 ### POST `/repass`
-Changes a user's pass, then regenerates and returns its code.
+Changes a user's pass. This action will invalidate the user's previous token.
 ```ts
 type Input = {
     name: string;
     pass: string;
     repass: string;
 };
-type Output = string;
+type Output = null;
 ```
 
 ### DELETE `/delete`
@@ -76,7 +76,7 @@ type Output = null;
 ```
 
 ### PUT `/unique`
-Fetches a user's UUID from name.
+Fetches a user's UUID and returns result.
 ```ts
 type Input = {
     name: string;
@@ -85,7 +85,7 @@ type Output = string;
 ```
 
 ### PUT `/lookup`
-Fetches a user's name from UUID.
+Fetches a user's name and returns result.
 ```ts
 type Input = {
     uuid: string;
@@ -93,18 +93,38 @@ type Input = {
 type Output = string;
 ```
 
+### PUT `/obtain`
+Fetches all user's UUIDs and returns results.
+```ts
+type Input = {
+    size: number;
+    page: number;
+};
+type Output = string[];
+```
+
+### PUT `/reveal`
+Fetches all user's names and returns results.
+```ts
+type Input = {
+    size: number;
+    page: number;
+};
+type Output = string[];
+```
+
 ### POST `/generate`
-Generates a user's token and return its code.
+Generates a user's token.
 ```ts
 type Input = {
     name: string;
     pass: string;
 };
-type Output = string;
+type Output = null;
 ```
 
 ### PUT `/retrieve`
-Returns a user's code.
+Retrieves a user's token and returns result.
 ```ts
 type Input = {
     name: string;
@@ -114,7 +134,7 @@ type Output = string;
 ```
 
 ### PUT `/identify`
-Identifies a user's name from code.
+Identifies a user's name from a token code and results result.
 ```ts
 type Input = {
     code: string;
@@ -146,7 +166,7 @@ type Output = null;
 ```
 
 ### PUT `/check`
-Returns a token's privilege pval from privilege pkey.
+Fetches a privilege's pval and returns result.
 ```ts
 type Input = {
     code: string;
@@ -155,8 +175,8 @@ type Input = {
 type Output = string | null;
 ```
 
-### POST `/list`
-Returns all token's privilege pkey and pval pairs.
+### PUT `/list`
+Fetches all privilege pairs and returns results.
 ```ts
 type Input = {
     code: string;
@@ -165,17 +185,25 @@ type Output = { [ pkey in string ]: string; };
 ```
 
 ## CLI
-Register the CLI by running:
+Use the CLI by running:
+```sh
+# Runs CLI
+bun src/cli <command> [...parameters]
+```
+
+Run `bun src/cli help` for more context.
+
+Link the binary by running:
 ```sh
 # Links package
 bun link
 
 # Runs CLI
-utpa [command]
+utpa <command> [...parameters]
 ```
 
 Run `utpa help` for more context.
 
 ---
 
-###### Last Updated: 2025-10-24 @ 03:30.
+###### Last Updated: 2025-10-29 @ 13:24.
