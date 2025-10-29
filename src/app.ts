@@ -333,6 +333,14 @@ export const app = new Hono()
             // Returns pairs
             return pairs;
         })
+    )
+    
+    // Defines fallback method
+    .all(
+        "/*",
+        (context) => protect(context, async () => {
+            throw status.Code.METHOD_NOT_FOUND;
+        })
     );
 
 // Exports
