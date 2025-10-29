@@ -1,221 +1,214 @@
 #!/usr/bin/env bun
 
 // Imports
-import chalk from "chalk";
+import chalk, { ChalkInstance } from "chalk";
 import { read } from "read";
 import * as core from "./core";
+import * as status from "./status";
 
-// Defines inputs
-export async function inquire(prompt: string): Promise<string> {
-    // Retrieves answer
-    const answer = await read({
-        prompt: chalk.yellow(prompt)
-    });
-    return answer;
-}
-export async function whisper(prompt: string): Promise<string> {
+// Defines ioputs
+export async function inquire(prompt: string, secret: boolean = false): Promise<string> {
     // Retrieves answer
     const answer = await read({
         prompt: chalk.yellow(prompt),
-        silent: true
+        silent: secret
     });
-    process.stdout.write("\n");
+    if(secret) process.stdout.write("\n");
     return answer;
 }
-
-// Defines outputs
-export function exclaim(message: string): void {
+export function display(message: string, style: ChalkInstance = chalk.white): void {
     // Prints message
-    process.stdout.write(chalk.cyan(message) + "\n");
-}
-export function display(message: string): void {
-    // Prints message
-    process.stdout.write(chalk.white(message) + "\n");
-}
-export function suggest(message: string): void {
-    // Prints message
-    process.stdout.write(chalk.gray(message) + "\n");
-}
-export function success(message: string): void {
-    // Prints message
-    process.stdout.write(chalk.green(message) + "\n");
-}
-export function enchant(message: string): void {
-    // Prints message
-    process.stdout.write(chalk.magenta(message) + "\n");
-}
-export function warning(message: string): void {
-    // Prints message
-    process.stdout.write(chalk.red(message) + "\n");
+    process.stdout.write(style(message) + "\n");
 }
 
 // Defines protector
-export async function protect(execute: () => Promise<boolean>): Promise<boolean> {
-    // Protects execution
+export async function protect(execute: () => Promise<unknown>): Promise<unknown> {
+    // Creates wrapper
     try {
         // Attempts execution
-        const result = await execute();
-        return result;
+        const data = await execute();
+        return data;
     }
     catch(error) {
-        // Ignores error
-        if(typeof error !== "number") return false;
-
-        // Catches except
-        const text = core.exceptTexts[error as core.ExceptCode] ?? core.exceptTexts[core.ExceptCode.EXCEPT_UNKNOWN];
-        const type = core.exceptTypes[error as core.ExceptCode] ?? core.exceptTypes[core.ExceptCode.EXCEPT_UNKNOWN];
-        warning(`${text} (${type})`);
-        return false;
+        // Reports error
+        const statusCode = typeof error === "number" && error in status.Code ?
+            error as status.Code : status.Code.INTERNAL_ERROR;
+        const statusText = status.texts[statusCode];
+        const statusType = status.types[statusCode];
+        display(`${statusText} (${statusType})`, chalk.red);
+        return null;
     }
 }
 
 // Creates registrar
 export type Operand = {
     hint: string;
-    slot: string;
-    plug: (parameters: string[]) => Promise<boolean>;
+    plug: (parameters: string[], sudo: boolean) => Promise<unknown>;
     rule: string;
+    slot: string;
 };
 const registrar: { [ command in string ]: Operand; } = {
     // Defines user methods
     "create": {
         slot: "user",
         rule: "create [name]",
-        hint: "Creates a new user, then returns its code in the console.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Create User ===");
-            suggest("- Name must be at least 3 characters (a-z, A-Z, 0-9, and _) in length.");
-            suggest("- Pass must be at least 6 characters in length.");
-            
-            // Collects data
-            const name = typeof parameters[0] === "string" ?
+        hint: "Creates a new user.",
+        plug: (parameters: string[]) => protect(async () => {            
+            // Parses inputs
+            const name = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please choose your name:");
-            const pass = await whisper("Please choose your pass:");
-            const conpass = await whisper("Please confirm your pass:");
-
-            // Confirms pass
-            if(pass !== conpass) {
-                warning("Failed to confirm pass.");
-                return false;
-            }
+            const pass = await inquire("Please choose your pass:", true);
+            const conpass = await inquire("Please confirm your pass:", true);
 
             // Creates user
-            const code = await core.createUser(name, pass);
-            success("Successfully created!");
-            enchant(code);
-            return true;
+            if(pass !== conpass) throw status.Code.USER_PASS_MISMATCH;
+            await core.createUser(name, pass);
+            
+            // Returns null
+            display("Successfully created!", chalk.green);
+            return null;
         })
     },
     "rename": {
         slot: "user",
         rule: "rename [name] [rename]",
-        hint: "Changes a user's name, then returns its code in the console.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Rename User ===");
-            suggest("- Name must be at least 3 characters (a-z, A-Z, 0-9, and _) in length.");
-
-            // Collects data
-            const name = typeof parameters[0] === "string" ?
+        hint: "Changes a user's name.",
+        plug: (parameters: string[], sudo: boolean) => protect(async () => {
+            // Parses inputs
+            const name = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter your old name:");
-            const rename = typeof parameters[1] === "string" ?
+            const rename = parameters.length >= 2 ?
                 parameters[1] : await inquire("Please choose your new name:");
-            const pass = await whisper("Please enter your pass:");
+            const pass = sudo ? "" : await inquire("Please enter your pass:", true);
 
             // Renames user
-            const code = await core.renameUser(name, pass, rename);
-            success("Successfully renamed!");
-            enchant(code);
-            return true;
+            if(!sudo && !await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            core.renameUser(name, rename);
+
+            // Returns null
+            display("Successfully renamed!", chalk.green);
+            return null;
         })
     },
     "repass": {
         slot: "user",
         rule: "repass [name]",
-        hint: "Changes a user's pass, then regenerates and returns its code in the console.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Repass User ===");
-            suggest("- Pass must be at least 6 characters in length.");
-            suggest("- This will invalidate your previous token.");
-
-            // Collects data
-            const name = typeof parameters[0] === "string" ?
+        hint: "Changes a user's pass. This action will invalidate the user's previous token.",
+        plug: (parameters: string[], sudo: boolean) => protect(async () => {
+            // Parses inputs
+            const name = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter your name:");
-            const pass = await whisper("Please enter your old pass:");
-            const repass = await whisper("Please choose your new pass:");
-            const conrepass = await whisper("Please confirm your new pass:");
-
-            // Confirms pass
-            if(repass !== conrepass) {
-                warning("Failed to confirm repass.");
-                return false;
-            }
+            const pass = sudo ? "" : await inquire("Please enter your old pass:", true);
+            const repass = await inquire("Please choose your new pass:", true);
+            const conrepass = await inquire("Please confirm your new pass:", true);
 
             // Repasses user
-            const code = await core.repassUser(name, pass, repass);
-            success("Successfully repassed!");
-            enchant(code);
-            return true;
+            if(pass !== conrepass) throw status.Code.USER_PASS_MISMATCH;
+            if(!sudo && !await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            await core.repassUser(name, repass);
+
+            // Returns null
+            display("Successfully repassed!", chalk.green);
+            return null;
         })
     },
     "delete": {
         slot: "user",
         rule: "delete [name]",
         hint: "Deletes a user forever.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Delete User ===");
-            suggest("- You cannot undo this operation!");
-
-            // Collects data
-            const name = typeof parameters[0] === "string" ?
+        plug: (parameters: string[], sudo: boolean) => protect(async () => {
+            // Parses inputs
+            const name = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter your name:");
-            const pass = await whisper("Please enter your pass:");
+            const pass = sudo ? "" : await inquire("Please enter your pass:", true);
 
             // Deletes user
-            await core.deleteUser(name, pass);
-            success("Successfully deleted!");
-            return true;
+            if(!sudo && !await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            core.deleteUser(name);
+
+            // Returns null
+            display("Successfully deleted!", chalk.green);
+            return null;
         })
     },
     "unique": {
         slot: "user",
         rule: "unique [name]",
-        hint: "Fetches a user's UUID from name.",
+        hint: "Fetches a user's UUID and prints result in console.",
         plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Fetch User UUID ===");
-            
-            // Collects data
-            const name = typeof parameters[0] === "string" ?
+            // Parses inputs
+            const name = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter a name:");
 
             // Fetches UUID
             const uuid = core.uniqueUser(name);
-            success("User found!");
-            enchant(uuid);
-            return true;
+
+            // Returns UUID
+            display("User found!", chalk.green);
+            display(uuid, chalk.magenta);
+            return uuid;
         })
     },
     "lookup": {
         slot: "user",
         rule: "lookup [name]",
-        hint: "Fetches a user's name from UUID.",
+        hint: "Fetches a user's name and prints result in console.",
         plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Fetch User Name ===");
-            
-            // Collects data
-            const uuid = typeof parameters[0] === "string" ?
+            // Parses inputs
+            const uuid = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter a uuid:");
 
             // Fetches name
-            const name = core.lookupUser(uuid);
-            success("User found!");
-            enchant(name);
-            return true;
+            const name = core.uniqueUser(uuid);
+
+            // Returns name
+            display("User found!", chalk.green);
+            display(name, chalk.magenta);
+            return name;
+        })
+    },
+    "obtain": {
+        slot: "user",
+        rule: "obtain [size] [page]",
+        hint: "Fetches all user's UUIDs and prints results in console.",
+        plug: (parameters: string[]) => protect(async () => {
+            // Parses inputs
+            const size = parameters.length >= 1 ?
+                parseInt(parameters[0]) : parseInt(await inquire("Please enter a size number:"));
+            const page = parameters.length >= 2 ?
+                parseInt(parameters[1]) : parseInt(await inquire("Please enter a page number:"));
+
+            // Fetches UUIDs
+            if(isNaN(size) || isNaN(page)) throw status.Code.MALFORMED_PARAMETERS;
+            if(size < 1 || page < 0) throw status.Code.MALFORMED_PARAMETERS;
+            const uuids = core.obtainUsers(size, page);
+
+            // Returns UUIDS
+            display("Users found!", chalk.green);
+            display(uuids.join(", "), chalk.magenta);
+            return uuids;
+        })
+    },
+    "reveal": {
+        slot: "user",
+        rule: "reveal [size] [page]",
+        hint: "Fetches all user's names and prints results in console.",
+        plug: (parameters: string[]) => protect(async () => {
+            // Parses inputs
+            const size = parameters.length >= 1 ?
+                parseInt(parameters[0]) : parseInt(await inquire("Please enter a size number:"));
+            const page = parameters.length >= 2 ?
+                parseInt(parameters[1]) : parseInt(await inquire("Please enter a page number:"));
+
+            // Fetches names
+            if(isNaN(size) || isNaN(page)) throw status.Code.MALFORMED_PARAMETERS;
+            if(size < 1 || page < 0) throw status.Code.MALFORMED_PARAMETERS;
+            const names = core.revealUsers(size, page);
+
+            // Returns names
+            display("Users found!", chalk.green);
+            display(names.join(", "), chalk.magenta);
+            return names;
         })
     },
     
@@ -223,60 +216,57 @@ const registrar: { [ command in string ]: Operand; } = {
     "generate": {
         slot: "token",
         rule: "generate [name]",
-        hint: "Generates a user's token and return its code in the console.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Generate Token ===");
-            suggest("- This will invalidate your previous token.");
-            
-            // Collects data
-            const name = typeof parameters[0] === "string" ?
+        hint: "Generates a user's token.",
+        plug: (parameters: string[], sudo: boolean) => protect(async () => {
+            // Parses inputs
+            const name = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter your name:");
-            const pass = await whisper("Please enter your pass:");
+            const pass = await inquire("Please enter your pass:", true);
 
             // Generates token
-            const code = await core.generateToken(name, pass);
-            success("Successfully generated!");
-            enchant(code);
-            return true;
+            if(!sudo && !await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            core.generateToken(name, pass);
+
+            // Returns null
+            display("Successfully generated!", chalk.green);
+            return null;
         })
     },
     "retrieve": {
         slot: "token",
         rule: "retrieve [name]",
-        hint: "Returns a user's code in the console.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Retrieve Token ===");
-            
-            // Collects data
-            const name = typeof parameters[0] === "string" ?
+        hint: "Retrieves a user's token and prints result in console.",
+        plug: (parameters: string[], sudo: boolean) => protect(async () => {
+            // Parses inputs
+            const name = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter your name:");
-            const pass = await whisper("Please enter your pass:");
+            const pass = await inquire("Please enter your pass:", true);
 
             // Retrieves token
-            const code = await core.retrieveToken(name, pass);
-            success("Successfully retrieved!");
-            enchant(code);
-            return true;
+            if(!sudo && !await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            const code = core.retrieveToken(name, pass);
+            
+            // Returns code
+            display("Successfully retrieved!", chalk.green);
+            display(code, chalk.magenta);
+            return code;
         })
     },
     "identify": {
         slot: "token",
         rule: "identify",
-        hint: "Identifies a user's name from code.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Identify Token ===");
-            
-            // Collects data
-            const code = await whisper("Please enter a code:");
+        hint: "Identifies a user's name from token code and prints result in console.",
+        plug: () => protect(async () => {
+            // Parses inputs
+            const code = await inquire("Please enter a code:", true);
 
             // Identifies token
             const name = core.identifyToken(code);
-            success("Token found!");
-            enchant(name);
-            return true;
+            
+            // Returns name
+            display("Token found!", chalk.green);
+            display(name, chalk.magenta);
+            return name;
         })
     },
     
@@ -285,81 +275,78 @@ const registrar: { [ command in string ]: Operand; } = {
         slot: "privilege",
         rule: "allow [pkey] [pval]",
         hint: "Allows or updates a token's privilege.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Allow Privilege ===");
-            suggest("- You are now running in sudo mode.");
-            
-            // Collects data
-            const code = await whisper("Please enter a code:");
-            const pkey = typeof parameters[0] === "string" ?
+        plug: (parameters: string[], sudo: boolean) => protect(async () => {
+            // Parses inputs
+            const code = await inquire("Please enter a code:", true);
+            const pkey = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter a pkey:");
-            const pval = typeof parameters[1] === "string" ?
+            const pval = parameters.length >= 2 ?
                 parameters[1] : await inquire("Please enter a pval:");
+            const auth = sudo ? "" : await inquire("Please enter a code:", true);
 
             // Allows privilege
-            core.allowPrivilege(code, pkey, pval, core.sudo);
-            success("Successfully allowed!");
-            return true;
+            if(!sudo && core.checkPrivilege(auth, "manage-privileges") !== "1") throw status.Code.TOKEN_CODE_BLOCKED;
+            core.allowPrivilege(code, pkey, pval);
+            
+            // Returns null
+            display("Successfully allowed!", chalk.green);
+            return null;
         })
     },
     "deny": {
         slot: "privilege",
         rule: "deny [pkey]",
         hint: "Deletes a token's privilege forever.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Deny Privilege ===");
-            suggest("- You are now running in sudo mode.");
-            
-            // Collects data
-            const code = await whisper("Please enter a code:");
-            const pkey = typeof parameters[0] === "string" ?
+        plug: (parameters: string[], sudo: boolean) => protect(async () => {
+            // Parses inputs
+            const code = await inquire("Please enter a code:", true);
+            const pkey = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter a pkey:");
+            const auth = sudo ? "" : await inquire("Please enter a code:", true);
 
             // Denies privilege
-            core.denyPrivilege(code, pkey, core.sudo);
-            success("Successfully denied!");
-            return true;
+            if(!sudo && core.checkPrivilege(auth, "manage-privileges") !== "1") throw status.Code.TOKEN_CODE_BLOCKED;
+            core.denyPrivilege(code, pkey);
+            
+            // Returns null
+            display("Successfully denied!", chalk.green);
+            return null;
         })
     },
     "check": {
         slot: "privilege",
         rule: "check [pkey]",
-        hint: "Returns a token's privilege pval from privilege pkey in the console.",
+        hint: "Fetches a privilege's pval and prints result in console.",
         plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Check Privilege ===");
-            
-            // Collects data
-            const code = await whisper("Please enter a code:");
-            const pkey = typeof parameters[0] === "string" ?
+            // Parses inputs
+            const code = await inquire("Please enter a code:", true);
+            const pkey = parameters.length >= 1 ?
                 parameters[0] : await inquire("Please enter a pkey:");
 
             // Checks privilege
             const pval = core.checkPrivilege(code, pkey);
-            success("Privilege found!");
-            enchant(`${pkey} = ${JSON.stringify(pval)}`);
-            return true;
+            
+            // Returns pval
+            display("Privilege found!", chalk.green);
+            display(`${pkey} = ${JSON.stringify(pval)}`, chalk.magenta);
+            return pval;
         })
     },
     "list": {
         slot: "privilege",
         rule: "list",
-        hint: "Returns all token's privilege pkey and pval pairs in the console.",
-        plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== List Privileges ===");
-            
-            // Collects data
-            const code = await whisper("Please enter a code:");
+        hint: "Fetches all privilege pairs and prints results in console.",
+        plug: () => protect(async () => {
+            // Parses inputs
+            const code = await inquire("Please enter a code:", true);
 
             // Lists privileges
             const pairs = core.listPrivileges(code);
-            success("Privilege found!");
-            for(let pkey in pairs)
-                enchant(`${pkey} = ${JSON.stringify(pairs[pkey])}`);
-            return true;
+            
+            // Returns pval
+            display("Privileges found!", chalk.green);
+            for(let pkey in pairs) display(`${pkey} = ${JSON.stringify(pairs[pkey])}`, chalk.magenta);
+            return pairs;
         })
     },
     
@@ -369,16 +356,12 @@ const registrar: { [ command in string ]: Operand; } = {
         rule: "help [command]",
         hint: "Displays more information about commands.",
         plug: (parameters: string[]) => protect(async () => {
-            // Prints header
-            exclaim("=== Help ===");
-            suggest("- Use help [command] for more specific details.");
-
             // Displays all
             if(parameters.length === 0) {
                 // Initializes menu
                 const slots: { [ slot in string ]: Operand[]; } = {};
 
-                // Classifies menu
+                // Slots menu
                 for(let command in registrar) {
                     const operand = registrar[command];
                     const slot = operand.slot;
@@ -387,55 +370,58 @@ const registrar: { [ command in string ]: Operand; } = {
                 }
 
                 // Prints menu
+                const sections: string[] = [];
                 for(let slot in slots) {
                     const operands = slots[slot];
-                    display("");
-                    display(slot);
-                    for(let i = 0; i < operands.length; i++) {
-                        const operand = operands[i];
-                        display("  " + operand.rule);
-                        suggest("    " + operand.hint);
-                    }
+                    sections.push(`${slot}\n${operands.map((operand) => `  ${operand.rule}\n    ${operand.hint}`).join("\n")}`);
                 }
-                return true;
+                display(sections.join("\n\n"));
+                return null;
             }
 
             // Displays one
             const command = parameters[0];
             if(command in registrar) {
                 const operand = registrar[command];
-                display("");
                 display(operand.rule);
-                suggest("  " + operand.hint);
-                return true;
+                display("  " + operand.hint);
+                return null;
             }
 
-            // Displays none 
-            display("");
-            warning("Command not found.");
-            return false;
+            // Displays none
+            throw status.Code.MALFORMED_PARAMETERS;
+        })
+    },
+    "sudo": {
+        slot: "general",
+        rule: "sudo <command> [...parameters]",
+        hint: "Runs a command as sudo.",
+        plug: (parameters: string[]) => protect(async () => {
+            // Interprets command
+            if(parameters.length === 0) throw status.Code.MALFORMED_PARAMETERS;
+            const data = interpret(parameters[0], parameters.slice(1), true);
+            return data;
         })
     }
 }
 
 // Defines interpreter
-export async function interpret(command: string, parameters: string[]): Promise<boolean> {
+export async function interpret(command: string, parameters: string[], sudo: boolean = false): Promise<unknown> {
     // Plugs command
-    if(command in registrar) {
-        const result = await registrar[command].plug(parameters);
-        return result;
-    }
-    
-    // Displays fallback message
-    warning(`Invalid command '${command}'.`);
-    return false;
+    return protect(async () => {
+        if(command in registrar) {
+            const data = await registrar[command].plug(parameters, sudo);
+            return data;
+        }
+        else throw status.Code.METHOD_NOT_FOUND;
+    });
 }
 
 // Interprets command
 if(import.meta.main) {
     const [ command, ...parameters ] = process.argv.slice(2);
-    const result = await interpret(command ?? "help", parameters);
-    process.exit(result ? 0 : 1);
+    await interpret(command ?? "help", parameters, false);
+    process.exit(0);
 }
 
 // Exports

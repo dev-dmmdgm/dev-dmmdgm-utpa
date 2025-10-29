@@ -3,26 +3,7 @@ import { Context, Hono } from "hono";
 import { validator } from "hono/validator";
 import * as zod from "zod";
 import * as core from "./core";
-
-// Defines statuses
-export enum StatusCode {
-    ACTION_SUCCESS,
-    INTERNAL_ERROR,
-    MALFORMED_BODY,
-    RAISED_EXCEPT
-}
-export const statusTexts: { [ statusCode in StatusCode ]: string; } = {
-    [ StatusCode.ACTION_SUCCESS ]: "Action was successful.",
-    [ StatusCode.INTERNAL_ERROR ]: "An internal error had occurred.",
-    [ StatusCode.MALFORMED_BODY ]: "Failed to parse incoming JSON: %reason%",
-    [ StatusCode.RAISED_EXCEPT ]: "An exception was raised."
-};
-export const statusTypes: { [ statusCode in StatusCode ]: string; } = {
-    [ StatusCode.ACTION_SUCCESS ]: "ACTION_SUCCESS",
-    [ StatusCode.INTERNAL_ERROR ]: "INTERNAL_ERROR",
-    [ StatusCode.MALFORMED_BODY ]: "MALFORMED_BODY",
-    [ StatusCode.RAISED_EXCEPT ]: "RAISED_EXCEPT"
-};
+import * as status from "./status";
 
 // Defines enforcer
 export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
@@ -30,70 +11,54 @@ export function enforce<SchemaType extends zod.ZodType>(schema: SchemaType) {
     const validate = validator("json", (value, context) => {
         // Parses value
         const result = schema.safeParse(value);
-        if(!result.success) return context.json({
-            "status": {
-                "code": StatusCode.MALFORMED_BODY,
-                "text": statusTexts[StatusCode.MALFORMED_BODY]
-                    .replaceAll(/%reason%/g, result.error.message),
-                "type": statusTypes[StatusCode.MALFORMED_BODY]
-            }
-        }, 400);
+        if(!result.success) {
+            const statusCode = status.Code.MALFORMED_BODY;
+            const statusText = status.texts[statusCode];
+            const statusType = status.types[statusCode];
+            return context.json({
+                data: null,
+                status: {
+                    code: statusCode,
+                    text: statusText,
+                    type: statusType
+                }
+            }, 400);
+        }
         return result.data;
     });
     return validate;
 }
 
 // Defines protector
-export async function protect(context: Context, execute: () => unknown) {
-    // Protects execution
+export async function protect(context: Context, execute: () => Promise<unknown>) {
+    // Creates wrapper
     try {
         // Attempts execution
         const data = await execute();
-        const statusCode = StatusCode.ACTION_SUCCESS;
-        const statusText = statusTexts[statusCode];
-        const statusType = statusTypes[statusCode];
+        const statusCode = status.Code.ACTION_SUCCESSFUL;
+        const statusText = status.texts[statusCode];
+        const statusType = status.types[statusCode];
         return context.json({
-            "status": {
-                "code": statusCode,
-                "text": statusText,
-                "type": statusType
-            },
-            "data": data
+            data: data,
+            status: {
+                code: statusCode,
+                text: statusText,
+                type: statusType
+            }
         }, 200);
     }
     catch(error) {
         // Reports error
-        if(typeof error !== "number") {
-            const statusCode = StatusCode.INTERNAL_ERROR;
-            const statusText = statusTexts[statusCode];
-            const statusType = statusTypes[statusCode];
-            return context.json({
-                "status": {
-                    "code": statusCode,
-                    "text": statusText,
-                    "type": statusType
-                }
-            });
-        }
-
-        // Catches except
-        const statusCode = StatusCode.RAISED_EXCEPT;
-        const statusText = statusTexts[statusCode];
-        const statusType = statusTypes[statusCode];
-        const exceptCode = error in core.ExceptCode ?
-            error as core.ExceptCode : core.ExceptCode.EXCEPT_UNKNOWN;
-        const exceptText = core.exceptTexts[exceptCode];
-        const exceptType = core.exceptTypes[exceptCode];
+        const statusCode = typeof error === "number" && error in status.Code ?
+            error as status.Code : status.Code.INTERNAL_ERROR;
+        const statusText = status.texts[statusCode];
+        const statusType = status.types[statusCode];
         return context.json({
-            "status": {
-                "code": statusCode,
-                "text": statusText,
-                "type": statusType
-            },
-            "except": {
-                "code": exceptCode,
-                "text": exceptText,
-                "type": exceptType
+            data: null,
+            status: {
+                code: statusCode,
+                text: statusText,
+                type: statusType
             }
         }, 400);
     }
@@ -109,10 +74,14 @@ export const app = new Hono()
             pass: zod.string()
         })),
         (context) => protect(context, async () => {
-            // Creates user
+            // Parses body
             const { name, pass } = context.req.valid("json");
-            const code = await core.createUser(name, pass);
-            return code;
+            
+            // Creates user
+            await core.createUser(name, pass);
+
+            // Returns null
+            return null;
         })
     )
     .post(
@@ -123,10 +92,15 @@ export const app = new Hono()
             rename: zod.string()
         })),
         (context) => protect(context, async () => {
-            // Renames user
+            // Parses body
             const { name, pass, rename } = context.req.valid("json");
-            const code = core.renameUser(name, pass, rename);
-            return code;
+            
+            // Renames user
+            if(!await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            core.renameUser(name, rename);
+
+            // Returns null
+            return null;
         })
     )
     .post(
@@ -137,10 +111,15 @@ export const app = new Hono()
             repass: zod.string()
         })),
         (context) => protect(context, async () => {
-            // Repasses user
+            // Parses body
             const { name, pass, repass } = context.req.valid("json");
-            const code = await core.repassUser(name, pass, repass);
-            return code;
+            
+            // Repasses user
+            if(!await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            await core.repassUser(name, repass);
+
+            // Returns null
+            return null;
         })
     )
     .delete(
@@ -150,9 +129,14 @@ export const app = new Hono()
             pass: zod.string()
         })),
         (context) => protect(context, async () => {
-            // Deletes user
+            // Parses body
             const { name, pass } = context.req.valid("json");
-            await core.deleteUser(name, pass);
+            
+            // Deletes user
+            if(!await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            core.deleteUser(name);
+            
+            // Returns null
             return null;
         })
     )
@@ -161,10 +145,14 @@ export const app = new Hono()
         enforce(zod.object({
             name: zod.string()
         })),
-        (context) => protect(context, () => {
-            // Fetches UUID
+        (context) => protect(context, async () => {
+            // Parses body
             const { name } = context.req.valid("json");
+            
+            // Fetches UUID
             const uuid = core.uniqueUser(name);
+            
+            // Returns UUID
             return uuid;
         })
     )
@@ -173,11 +161,49 @@ export const app = new Hono()
         enforce(zod.object({
             uuid: zod.string()
         })),
-        (context) => protect(context, () => {
-            // Fetches name
+        (context) => protect(context, async () => {
+            // Parses body
             const { uuid } = context.req.valid("json");
+            
+            // Fetches name
             const name = core.lookupUser(uuid);
+            
+            // Returns name
             return name;
+        })
+    )
+    .put(
+        "/obtain",
+        enforce(zod.object({
+            size: zod.int(),
+            page: zod.int()
+        })),
+        (context) => protect(context, async () => {
+            // Parses body
+            const { size, page } = context.req.valid("json");
+            
+            // Fetches UUIDs
+            const uuids = core.obtainUsers(size, page);
+            
+            // Returns UUIDs
+            return uuids;
+        })
+    )
+    .put(
+        "/reveal",
+        enforce(zod.object({
+            size: zod.int(),
+            page: zod.int()
+        })),
+        (context) => protect(context, async () => {
+            // Parses body
+            const { size, page } = context.req.valid("json");
+            
+            // Fetches names
+            const names = core.revealUsers(size, page);
+            
+            // Returns names
+            return names;
         })
     )
 
@@ -189,22 +215,32 @@ export const app = new Hono()
             pass: zod.string()
         })),
         (context) => protect(context, async () => {
-            // Generates token
+            // Parses body
             const { name, pass } = context.req.valid("json");
-            const code = await core.generateToken(name, pass);
-            return code;
+            
+            // Generates token
+            if(!await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            core.generateToken(name, pass);
+            
+            // Returns null
+            return null;
         })
     )
     .put(
-        "/generate",
+        "/retrieve",
         enforce(zod.object({
             name: zod.string(),
             pass: zod.string()
         })),
         (context) => protect(context, async () => {
-            // Retrieves token
+            // Parses body
             const { name, pass } = context.req.valid("json");
-            const code = await core.generateToken(name, pass);
+            
+            // Retrieves token
+            if(!await core.verifyUser(name, pass)) throw status.Code.USER_PASS_BLOCKED;
+            const code = core.generateToken(name, pass);
+            
+            // Returns null
             return code;
         })
     )
@@ -213,10 +249,14 @@ export const app = new Hono()
         enforce(zod.object({
             code: zod.string()
         })),
-        (context) => protect(context, () => {
-            // Identifies token
+        (context) => protect(context, async () => {
+            // Parses body
             const { code } = context.req.valid("json");
+
+            // Identifies token
             const name = core.identifyToken(code);
+
+            // Returns name
             return name;
         })
     )
@@ -230,10 +270,15 @@ export const app = new Hono()
             pkey: zod.string(),
             pval: zod.string()
         })),
-        (context) => protect(context, () => {
-            // Allows privilege
+        (context) => protect(context, async () => {
+            // Parses body
             const { auth, code, pkey, pval } = context.req.valid("json");
-            core.allowPrivilege(code, pkey, pval, auth);
+
+            // Allows privilege
+            if(core.checkPrivilege(auth, "manage-privileges") !== "1") throw status.Code.TOKEN_CODE_BLOCKED;
+            core.allowPrivilege(code, pkey, pval);
+
+            // Returns null
             return null;
         })
     )
@@ -244,10 +289,15 @@ export const app = new Hono()
             code: zod.string(),
             pkey: zod.string()
         })),
-        (context) => protect(context, () => {
-            // Denies privilege
+        (context) => protect(context, async () => {
+            // Parses body
             const { auth, code, pkey } = context.req.valid("json");
-            core.denyPrivilege(code, pkey, auth);
+
+            // Allows privilege
+            if(core.checkPrivilege(auth, "manage-privileges") !== "1") throw status.Code.TOKEN_CODE_BLOCKED;
+            core.denyPrivilege(code, pkey);
+
+            // Returns null
             return null;
         })
     )
@@ -257,10 +307,14 @@ export const app = new Hono()
             code: zod.string(),
             pkey: zod.string()
         })),
-        (context) => protect(context, () => {
-            // Checks privilege
+        (context) => protect(context, async () => {
+            // Parses body
             const { code, pkey } = context.req.valid("json");
+
+            // Checks privilege
             const pval = core.checkPrivilege(code, pkey);
+
+            // Returns pval
             return pval;
         })
     )
@@ -269,10 +323,14 @@ export const app = new Hono()
         enforce(zod.object({
             code: zod.string()
         })),
-        (context) => protect(context, () => {
-            // List privileges
+        (context) => protect(context, async () => {
+            // Parses body
             const { code } = context.req.valid("json");
+            
+            // List privileges
             const pairs = core.listPrivileges(code);
+            
+            // Returns pairs
             return pairs;
         })
     );

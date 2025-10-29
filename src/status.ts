@@ -54,7 +54,7 @@ export const texts: { [ code in Code ]: string; } = {
     [ Code.USER_PASS_BLOCKED ]: "User pass does not match its hash.",
     [ Code.USER_PASS_MISMATCH ]: "Confirmation pass is different than the original pass.",
     [ Code.USER_CREATE_FAILED ]: "Failed to create user. User name is already in use.",
-    [ Code.USER_VERIFY_FAILED ]: "Failed to verify user. Unable to complete verification.",
+    [ Code.USER_VERIFY_FAILED ]: "Failed to verify user. User entry does not exist.",
     [ Code.USER_RENAME_FAILED ]: "Failed to rename user. User entry does not exist or user name is already in use.",
     [ Code.USER_REPASS_FAILED ]: "Failed to repass user. User entry does not exist.",
     [ Code.USER_DELETE_FAILED ]: "Failed to delete user. User entry does not exist.",
