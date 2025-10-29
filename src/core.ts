@@ -19,10 +19,14 @@ export async function createUser(name: string, pass: string): Promise<void> {
     const uuid = Bun.randomUUIDv7();
 
     // Writes to database
-    const result = database.prepare(`
-        INSERT INTO users VALUES ($name, $hash, $uuid);
-    `).run({ hash, name, uuid });
-    if(result.changes === 0) throw status.Code.USER_CREATE_FAILED;
+    try {
+        database.prepare(`
+            INSERT INTO users VALUES ($name, $hash, $uuid);
+        `).run({ hash, name, uuid });
+    }
+    catch {
+        throw status.Code.USER_CREATE_FAILED;
+    }
 
     // Generates token
     generateToken(name, pass);
