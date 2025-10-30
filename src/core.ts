@@ -20,9 +20,10 @@ export async function createUser(name: string, pass: string): Promise<void> {
 
     // Writes to database
     try {
-        database.prepare(`
+        const result = database.prepare(`
             INSERT INTO users VALUES ($name, $hash, $uuid);
         `).run({ hash, name, uuid });
+        if(result.changes === 0) throw status.Code.USER_CREATE_FAILED;
     }
     catch {
         throw status.Code.USER_CREATE_FAILED;
@@ -52,10 +53,15 @@ export function renameUser(name: string, rename: string): void {
     if(!/^[a-zA-Z0-9_]{3,}$/.test(rename)) throw status.Code.USER_NAME_INVALID;
 
     // Writes to database
-    const result = database.prepare(`
-        UPDATE users SET name = $rename WHERE name = $name;
-    `).run({ name, rename });
-    if(result.changes === 0) throw status.Code.USER_RENAME_FAILED;
+    try {
+        const result = database.prepare(`
+            UPDATE users SET name = $rename WHERE name = $name;
+        `).run({ name, rename });
+        if(result.changes === 0) throw status.Code.USER_RENAME_FAILED;
+    }
+    catch {
+        throw status.Code.USER_RENAME_FAILED;
+    }
 }
 export async function repassUser(name: string, repass: string): Promise<void> {
     // Hashes repass
@@ -63,20 +69,30 @@ export async function repassUser(name: string, repass: string): Promise<void> {
     const rehash = await Bun.password.hash(repass);
 
     // Writes to database
-    const result = database.prepare(`
-        UPDATE users SET hash = $rehash WHERE name = $name;
-    `).run({ name, rehash });
-    if(result.changes === 0) throw status.Code.USER_REPASS_FAILED;
+    try {
+        const result = database.prepare(`
+            UPDATE users SET hash = $rehash WHERE name = $name;
+        `).run({ name, rehash });
+        if(result.changes === 0) throw status.Code.USER_REPASS_FAILED;
+    }
+    catch {
+        throw status.Code.USER_REPASS_FAILED;
+    }
 
     // Generates token
     generateToken(name, repass);
 }
 export function deleteUser(name: string): void {
     // Writes to database
-    const result = database.prepare(`
-        DELETE FROM users WHERE name = $name;
-    `).run({ name });
-    if(result.changes === 0) throw status.Code.USER_DELETE_FAILED;
+    try {
+        const result = database.prepare(`
+            DELETE FROM users WHERE name = $name;
+        `).run({ name });
+        if(result.changes === 0) throw status.Code.USER_DELETE_FAILED;
+    }
+    catch {
+        throw status.Code.USER_DELETE_FAILED;
+    }
 }
 export function uniqueUser(name: string): string {
     // Reads from database
@@ -140,10 +156,11 @@ export function generateToken(name: string, pass: string): void {
 
     // Writes to database
     try {
-        database.prepare(`
+        const result = database.prepare(`
             INSERT INTO tokens VALUES ($mask, $sign, $name)
                 ON CONFLICT (name) DO UPDATE SET mask = $mask, sign = $sign WHERE name = $name;
         `).run({ mask, name, sign });
+        if(result.changes === 0) throw status.Code.TOKEN_GENERATE_FAILED;
     }
     catch {
         throw status.Code.TOKEN_GENERATE_FAILED;
@@ -156,10 +173,15 @@ export function retrieveToken(name: string, pass: string): string {
     `).get({ name }) as {
         sign: string;
     } | null;
-    if(token === null) throw status.Code.TOKEN_ENTRY_MISSING;
+    if(token === null) throw status.Code.TOKEN_RETRIEVE_FAILED;
 
     // Decrypts token
-    return decryptToken(token.sign, pass);
+    try {
+        return decryptToken(token.sign, pass);
+    }
+    catch {
+        throw status.Code.TOKEN_RETRIEVE_FAILED;
+    }
 }
 export function identifyToken(code: string): string {
     // Sources mask
@@ -171,7 +193,7 @@ export function identifyToken(code: string): string {
     `).get({ mask }) as {
         name: string;
     } | null;
-    if(token === null) throw status.Code.TOKEN_ENTRY_MISSING;
+    if(token === null) throw status.Code.TOKEN_IDENTIFY_FAILED;
 
     // Returns name
     return token.name;
@@ -208,7 +230,7 @@ export function decryptToken(sign: string, pass: string): string {
         return decipher.update(warp, "hex", "base64") + decipher.final("base64");
     }
     catch {
-        throw status.Code.USER_PASS_BLOCKED;
+        throw status.Code.TOKEN_DECRYPT_FAILED;
     }
 }
 export function sourceToken(code: string): string {
@@ -223,10 +245,11 @@ export function allowPrivilege(code: string, pkey: string, pval: string): void {
 
     // Writes to database
     try {
-        database.prepare(`
+        const result = database.prepare(`
             INSERT INTO privileges VALUES ($mask, $pkey, $pval)
                 ON CONFLICT (mask, pkey) DO UPDATE SET pval = $pval WHERE mask = $mask AND pkey = $pkey;
         `).run({ mask, pkey, pval });
+        if(result.changes === 0) throw status.Code.PRIVILEGE_ALLOW_FAILED;
     }
     catch {
         throw status.Code.PRIVILEGE_ALLOW_FAILED;
@@ -237,10 +260,15 @@ export function denyPrivilege(code: string, pkey: string): void {
     const mask = sourceToken(code);
 
     // Writes to database
-    const result = database.prepare(`
-        DELETE FROM privileges WHERE mask = $mask AND pkey = $pkey;
-    `).run({ mask, pkey });
-    if(result.changes === 0) throw status.Code.PRIVILEGE_DENY_FAILED;
+    try {
+        const result = database.prepare(`
+            DELETE FROM privileges WHERE mask = $mask AND pkey = $pkey;
+        `).run({ mask, pkey });
+        if(result.changes === 0) throw status.Code.PRIVILEGE_DENY_FAILED;
+    }
+    catch {
+        throw status.Code.PRIVILEGE_DENY_FAILED;
+    }
 }
 export function checkPrivilege(code: string, pkey: string): string | null {
     // Sources mask
