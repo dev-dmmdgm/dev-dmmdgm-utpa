@@ -31,7 +31,7 @@ Change port by specifying `PORT` in your `.env` or by running:
 PORT=3000 bun src/app
 ```
 
----
+## API
 
 ### POST `/create`
 Creates a new user.
@@ -206,4 +206,4 @@ Run `utpa help` for more context.
 
 ---
 
-###### Last Updated: 2025-10-30 @ 03:15.
+###### Last Updated: 2025-10-30 @ 03:19.
