@@ -69,16 +69,16 @@ export const texts: { [ code in Code ]: string; } = {
     /* Token */
     [ Code.TOKEN_ENTRY_MISSING ]: "Token entry does not exist.",
     [ Code.TOKEN_CODE_BLOCKED ]: "Token does not have the required privilege.",
-    [ Code.TOKEN_GENERATE_FAILED ]: "Failed to generate token. Token code collided with another token entry.",
+    [ Code.TOKEN_GENERATE_FAILED ]: "Failed to generate token. User entry does not exist or token code has collided.",
     [ Code.TOKEN_RETRIEVE_FAILED ]: "Failed to retrieve token. Token entry does not exist or user pass is incorrect.",
     [ Code.TOKEN_IDENTIFY_FAILED ]: "Failed to identify token. Token entry does not exist.",
-    [ Code.TOKEN_ENCRYPT_FAILED ]: "Failed to encrypt token. User pass is corrupted.",
+    [ Code.TOKEN_ENCRYPT_FAILED ]: "Failed to encrypt token. User pass is invalid.",
     [ Code.TOKEN_DECRYPT_FAILED ]: "Failed to decrpyt token. User pass is incorrect.",
-    [ Code.TOKEN_SOURCE_FAILED ]: "Failed to source token. Token code is corrupted.",
+    [ Code.TOKEN_SOURCE_FAILED ]: "Failed to source token. Token code is invalid.",
 
     /* Privilege */
     [ Code.PRIVILEGE_ENTRY_MISSING ]: "Privilege entry does not exist.",
-    [ Code.PRIVILEGE_ALLOW_FAILED ]: "Failed to allow privilege. Privilege entry may be corrupted.",
+    [ Code.PRIVILEGE_ALLOW_FAILED ]: "Failed to allow privilege. Token entry does not exist.",
     [ Code.PRIVILEGE_DENY_FAILED ]: "Failed to deny privilege. Privilege entry does not exist.",
     [ Code.PRIVILEGE_CHECK_FAILED ]: "Failed to check privilege. Privilege entry does not exist.",
     [ Code.PRIVILEGE_LIST_FAILED ]: "Failed to list privilege. Privilege entries do not exist."  
