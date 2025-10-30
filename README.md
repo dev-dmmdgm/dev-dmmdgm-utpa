@@ -18,7 +18,7 @@ cd dev-dmmdgm-utpa
 bun i
 ```
 
-## HTTP Server
+## Backend Server
 Start a local server by running:
 ```sh
 # Starts server
@@ -206,4 +206,4 @@ Run `utpa help` for more context.
 
 ---
 
-###### Last Updated: 2025-10-29 @ 13:24.
+###### Last Updated: 2025-10-30 @ 03:15.
