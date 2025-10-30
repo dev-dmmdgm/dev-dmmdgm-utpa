@@ -1,4 +1,7 @@
 {
+    "bin": {
+        "utpa": "./src/cli.ts"
+    },
     "dependencies": {
         "chalk": "^5.6.2",
         "hono": "^4.9.9",
@@ -9,8 +12,5 @@
         "@types/bun": "latest"
     },
     "name": "dev-dmmdgm-utpa",
-    "type": "module",
-    "bin": {
-        "utpa": "./src/cli.ts"
-    }
+    "type": "module"
 }
